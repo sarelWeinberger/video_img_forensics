@@ -1,0 +1,53 @@
+/* Styles for forensic heat map images */
+.analysis-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 5px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.analysis-image:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Heat map container */
+.heat-map-container {
+  margin-bottom: 20px;
+}
+
+/* Heat map info */
+.heat-map-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.heat-map-info-item {
+  background-color: #f8f9fa;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Heat map tabs */
+.nav-tabs .nav-link {
+  color: #495057;
+  font-weight: 500;
+}
+
+.nav-tabs .nav-link.active {
+  color: #007bff;
+  font-weight: 600;
+}
+
+/* Heat map description */
+.heat-map-description {
+  margin-bottom: 15px;
+  color: #6c757d;
+}
