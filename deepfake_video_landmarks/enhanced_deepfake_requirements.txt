@@ -1,0 +1,46 @@
+
+# Enhanced Deepfake Detection Analyzer - Requirements
+# Python 3.8+ required
+
+# Core GUI Framework
+tkinter>=8.6  # Usually comes with Python
+
+# Computer Vision and Image Processing
+opencv-python>=4.5.0
+Pillow>=8.0.0
+dlib>=19.20.0
+
+# Deep Learning Framework
+tensorflow>=2.8.0
+# Alternative: tensorflow-gpu>=2.8.0  # For GPU acceleration
+
+# Scientific Computing
+numpy>=1.20.0
+scipy>=1.7.0
+
+# Data Visualization
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# Threading and Queue Management (built-in with Python)
+queue  # Built-in module
+threading  # Built-in module
+collections  # Built-in module
+
+# File and System Operations (built-in with Python)
+os  # Built-in module
+gc  # Built-in module
+time  # Built-in module
+
+# Optional: For better performance
+# numba>=0.56.0  # JIT compilation for faster processing
+
+# Development and Testing (optional)
+# pytest>=6.0.0
+# pytest-cov>=2.0.0
+
+# Additional Notes:
+# 1. Download shape_predictor_68_face_landmarks.dat from:
+#    http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
+# 2. Extract and place in the same directory as the main script
+# 3. Ensure you have your trained model file: enhanced_deepfake_lstm_model.h5
