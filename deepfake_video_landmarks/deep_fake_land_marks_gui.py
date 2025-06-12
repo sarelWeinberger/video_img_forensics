@@ -43,7 +43,7 @@ class DeepfakeDetectionGUI:
         self.analysis_thread = None
         self.display_thread = None
         self.video_loading_thread = None
-        self.model_path = "enhanced_deepfake_lstm_model.h5"
+        self.model_path = "enhanced_deepfake_lstm_model_fallback.h5"
 
         # Analysis parameters
         self.chunk_size = 64
