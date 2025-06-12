@@ -1238,6 +1238,7 @@ class DeepfakeDetectionGUI:
             self.ax3.set_facecolor(self.colors['bg'])
 
 
+
         self.ax3.set_title('📊 Frame Classification Percentage', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=15)
 
