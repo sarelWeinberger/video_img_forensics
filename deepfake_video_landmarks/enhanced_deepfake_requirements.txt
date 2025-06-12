@@ -2,8 +2,6 @@
 # Enhanced Deepfake Detection Analyzer - Requirements
 # Python 3.8+ required
 
-# Core GUI Framework
-tkinter>=8.6  # Usually comes with Python
 
 # Computer Vision and Image Processing
 opencv-python>=4.5.0

@@ -503,36 +503,36 @@ class DeepfakeDetectionGUI:
         self.stats_text.pack(fill=tk.X, padx=15, pady=(0, 15))
 
     def setup_charts(self):
-        """Setup enhanced analysis charts"""
+        """Setup enhanced analysis charts with better spacing"""
         self.fig.clear()
 
         # Set the figure background
         self.fig.patch.set_facecolor(self.colors['card'])
 
-        # Confidence over time
-        self.ax1 = self.fig.add_subplot(3, 1, 1)
+        # Create subplots with equal heights but MORE vertical space between them
+        gs = self.fig.add_gridspec(3, 1, height_ratios=[1, 1, 1], hspace=0.8)
+
+        # Top plot - taller for confidence over time
+        self.ax1 = self.fig.add_subplot(gs[0])
         self.ax1.set_title('Confidence Score Over Time', color=self.colors['text'],
-                           fontsize=12, fontweight='bold', pad=15)
+                           fontsize=12, fontweight='bold', pad=20)
         self.ax1.set_facecolor(self.colors['bg'])
         self.ax1.tick_params(colors=self.colors['text_dim'], labelsize=9)
         self.ax1.grid(True, alpha=0.3, color=self.colors['text_dim'])
 
-        # Chunk Analysis - New enhanced visualization
-        self.ax2 = self.fig.add_subplot(3, 1, 2)
-        self.ax2.set_title('Video Chunk Analysis', color=self.colors['text'],
-                           fontsize=12, fontweight='bold', pad=15)
+        # Middle plot - timeline without legend
+        self.ax2 = self.fig.add_subplot(gs[1])
+        self.ax2.set_title('Temporal Authenticity Analysis', color=self.colors['text'],
+                           fontsize=12, fontweight='bold', pad=20)
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=9)
 
-        # Recent predictions timeline
-        self.ax3 = self.fig.add_subplot(3, 1, 3)
-        self.ax3.set_title('Recent Predictions Timeline', color=self.colors['text'],
-                           fontsize=12, fontweight='bold', pad=15)
+        # Bottom plot - horizontal bar chart
+        self.ax3 = self.fig.add_subplot(gs[2])
+        self.ax3.set_title('Frame Analysis Percentage', color=self.colors['text'],
+                           fontsize=12, fontweight='bold', pad=20)
         self.ax3.set_facecolor(self.colors['bg'])
         self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=9)
-        self.ax3.grid(True, alpha=0.3, color=self.colors['text_dim'])
-
-        plt.tight_layout(pad=2)
 
     def setup_status_bar(self, parent):
         """Setup enhanced status bar"""
@@ -1133,8 +1133,11 @@ class DeepfakeDetectionGUI:
                           bbox=dict(boxstyle="round,pad=0.3", facecolor=self.colors['fake'], alpha=0.2))
 
             # Add legend
-            self.ax2.legend(loc='upper right', fontsize=8,
-                            facecolor=self.colors['bg'], edgecolor=self.colors['text_dim'])
+            legend = self.ax2.legend(loc='upper right', fontsize=8,
+                                     facecolor=self.colors['bg'], edgecolor=self.colors['text_dim'])
+            # Set legend text color to white
+            for text in legend.get_texts():
+                text.set_color('white')
 
             # Add grid for better readability
             self.ax2.grid(True, alpha=0.3, color=self.colors['text_dim'])
@@ -1150,21 +1153,93 @@ class DeepfakeDetectionGUI:
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-        # Recent predictions timeline with improved visualization
-        recent_predictions = list(self.prediction_history)[-50:]
-        if recent_predictions:
-            colors = [self.colors['real'] if p > 0.5 else self.colors['fake'] for p in recent_predictions]
-            sizes = [abs(p - 0.5) * 100 + 20 for p in recent_predictions]  # Size based on confidence
+        # HORIZONTAL BAR CHART - Real vs Fake Percentages
+        if self.prediction_history:
+            # Calculate percentages
+            total_frames = len(predictions)
+            real_frames = sum(1 for p in predictions if p > 0.5)
+            fake_frames = total_frames - real_frames
 
-            self.ax3.scatter(range(len(recent_predictions)), recent_predictions, c=colors, alpha=0.7, s=sizes)
-            self.ax3.axhline(y=0.5, color=self.colors['text_dim'], linestyle='--', alpha=0.6, linewidth=1)
+            real_percentage = (real_frames / total_frames) * 100
+            fake_percentage = (fake_frames / total_frames) * 100
 
-        self.ax3.set_title('Recent Predictions Timeline', color=self.colors['text'], fontsize=11, fontweight='bold',
-                           pad=10)
-        self.ax3.set_facecolor(self.colors['bg'])
-        self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=8)
-        self.ax3.set_ylim(0, 1)
-        self.ax3.grid(True, alpha=0.2, color=self.colors['text_dim'])
+            # Clear the axis
+            self.ax3.clear()
+
+            # Create horizontal bar chart
+            categories = ['REAL', 'FAKE']
+            percentages = [real_percentage, fake_percentage]
+            colors = [self.colors['real'], self.colors['fake']]
+
+            # Create the bars
+            bars = self.ax3.barh(categories, percentages, color=colors, alpha=0.8, height=0.6)
+
+            # Add percentage labels on the bars with category names
+            for i, (bar, percentage, category) in enumerate(zip(bars, percentages, categories)):
+                width = bar.get_width()
+                # Position text in the middle of the bar if percentage > 10%, otherwise outside
+                if percentage > 10:
+                    x_pos = width / 2
+                    ha = 'center'
+                    color = 'white'
+                    fontweight = 'bold'
+                    text = f'{category}: {percentage:.1f}%'
+                else:
+                    x_pos = width + 1
+                    ha = 'left'
+                    color = self.colors['text']
+                    fontweight = 'normal'
+                    text = f'{category}: {percentage:.1f}%'
+
+                self.ax3.text(x_pos, bar.get_y() + bar.get_height() / 2,
+                              text,
+                              ha=ha, va='center',
+                              color=color, fontsize=12, fontweight=fontweight)
+
+            # Add frame counts as additional labels
+            for i, (bar, category) in enumerate(zip(bars, categories)):
+                frame_count = real_frames if category == 'REAL' else fake_frames
+                self.ax3.text(-2, bar.get_y() + bar.get_height() / 2,
+                              f'{frame_count:,} frames',
+                              ha='right', va='center',
+                              color=self.colors['text_dim'], fontsize=10)
+
+            # Customize the chart
+            self.ax3.set_xlim(0, 100)
+            self.ax3.set_xlabel('Percentage (%)', color=self.colors['text_dim'], fontsize=10)
+            self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=10)
+
+            # Remove y-axis ticks and labels
+            self.ax3.set_yticks([])
+            self.ax3.tick_params(left=False)
+
+            # Add grid for better readability
+            self.ax3.grid(True, alpha=0.3, color=self.colors['text_dim'], axis='x')
+
+            # Add a subtle background
+            self.ax3.set_facecolor(self.colors['bg'])
+
+            # Add total frames text
+            self.ax3.text(50, -0.8, f'Total Analyzed: {total_frames:,} frames',
+                          ha='center', va='center',
+                          color=self.colors['text_dim'], fontsize=9,
+                          transform=self.ax3.transData)
+
+        else:
+            # No data yet - show empty chart
+            self.ax3.clear()
+            self.ax3.text(0.5, 0.5, 'Bar Chart Ready\nAwaiting Analysis...',
+                          transform=self.ax3.transAxes, ha='center', va='center',
+                          fontsize=12, color=self.colors['text_dim'])
+            self.ax3.set_xlim(0, 100)
+            self.ax3.set_xlabel('Percentage (%)', color=self.colors['text_dim'], fontsize=10)
+            self.ax3.set_ylabel('Classification', color=self.colors['text_dim'], fontsize=10)
+            self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=10)
+            self.ax3.set_facecolor(self.colors['bg'])
+
+
+        self.ax3.set_title('📊 Frame Classification Percentage', color=self.colors['text'],
+                           fontsize=12, fontweight='bold', pad=15)
 
         plt.tight_layout(pad=1.5)
         self.canvas.draw()
@@ -1379,7 +1454,7 @@ class DeepfakeDetectionGUI:
 
         confidence_label = tk.Label(
             verdict_inner,
-            text=f"Confidence: {verdict_confidence:.1f}% | Reliability: {reliability_icon} {reliability}",
+            text=f"Confidence: {verdict_confidence:.1f}%",
             font=('Segoe UI', 14),
             fg=self.colors['text'],
             bg=self.colors['card_light']
@@ -1456,8 +1531,7 @@ Frames Analyzed: {total_frames:,} | Analysis Coverage: {(total_frames / max(1, s
 CONFIDENCE METRICS:
 ├─ Average Confidence: {avg_confidence:.1f}%
 ├─ Peak Confidence: {max_confidence:.1f}%
-├─ Minimum Confidence: {min_confidence:.1f}%
-└─ Overall Reliability: {reliability}
+└─ Minimum Confidence: {min_confidence:.1f}%
 
 TEMPORAL ANALYSIS:
 ├─ Suspicious Time Segments: {len(suspicious_segments)} detected
