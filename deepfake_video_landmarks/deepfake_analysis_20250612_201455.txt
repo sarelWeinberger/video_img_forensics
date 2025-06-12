@@ -1,0 +1,80 @@
+
+DEEPFAKE DETECTION ANALYSIS REPORT
+Generated: 2025-06-12 20:14:55
+============================================================
+
+VIDEO INFORMATION:
+- File: 01_03__meeting_serious__JZUXXFRB.mp4
+- Duration: 43.54 seconds
+- Total Frames: 1,045
+- Frames Analyzed: 200
+- Frame Rate: 24.0 fps
+
+ANALYSIS RESULTS:
+- Final Verdict: DEEPFAKE DETECTED
+- Confidence: 85.5%
+- Authentic Frames: 29 (14.50%)
+- Manipulated Frames: 171 (85.50%)
+- Average Confidence: 10.43%
+
+TECHNICAL DETAILS:
+- Model: Enhanced LSTM Deepfake Detector
+- Analysis Method: Facial Landmark + Color Features
+- Chunk Size: 64 frames
+- Feature Dimensions: 340
+- Processing Quality: High
+
+FRAME-BY-FRAME PREDICTIONS:
+Frame 1: REAL (Confidence: 1.7%)
+Frame 2: REAL (Confidence: 0.6%)
+Frame 3: FAKE (Confidence: 0.5%)
+Frame 4: FAKE (Confidence: 0.7%)
+Frame 5: REAL (Confidence: 0.1%)
+Frame 6: REAL (Confidence: 0.8%)
+Frame 7: REAL (Confidence: 0.3%)
+Frame 8: REAL (Confidence: 0.5%)
+Frame 9: REAL (Confidence: 0.7%)
+Frame 10: FAKE (Confidence: 0.4%)
+Frame 11: FAKE (Confidence: 1.7%)
+Frame 12: FAKE (Confidence: 1.2%)
+Frame 13: FAKE (Confidence: 3.0%)
+Frame 14: FAKE (Confidence: 3.6%)
+Frame 15: FAKE (Confidence: 3.5%)
+Frame 16: FAKE (Confidence: 4.3%)
+Frame 17: FAKE (Confidence: 5.0%)
+Frame 18: FAKE (Confidence: 6.8%)
+Frame 19: FAKE (Confidence: 7.0%)
+Frame 20: FAKE (Confidence: 9.0%)
+Frame 21: FAKE (Confidence: 9.5%)
+Frame 22: FAKE (Confidence: 9.5%)
+Frame 23: FAKE (Confidence: 9.9%)
+Frame 24: FAKE (Confidence: 9.0%)
+Frame 25: FAKE (Confidence: 8.4%)
+Frame 26: FAKE (Confidence: 8.3%)
+Frame 27: FAKE (Confidence: 8.5%)
+Frame 28: FAKE (Confidence: 8.6%)
+Frame 29: FAKE (Confidence: 8.1%)
+Frame 30: FAKE (Confidence: 8.5%)
+Frame 31: FAKE (Confidence: 8.9%)
+Frame 32: FAKE (Confidence: 9.9%)
+Frame 33: FAKE (Confidence: 9.9%)
+Frame 34: FAKE (Confidence: 10.2%)
+Frame 35: FAKE (Confidence: 10.4%)
+Frame 36: FAKE (Confidence: 11.0%)
+Frame 37: FAKE (Confidence: 11.4%)
+Frame 38: FAKE (Confidence: 11.2%)
+Frame 39: FAKE (Confidence: 11.3%)
+Frame 40: FAKE (Confidence: 11.2%)
+Frame 41: FAKE (Confidence: 11.4%)
+Frame 42: FAKE (Confidence: 11.7%)
+Frame 43: FAKE (Confidence: 10.7%)
+Frame 44: FAKE (Confidence: 11.7%)
+Frame 45: FAKE (Confidence: 12.9%)
+Frame 46: FAKE (Confidence: 13.1%)
+Frame 47: FAKE (Confidence: 13.2%)
+Frame 48: FAKE (Confidence: 13.8%)
+Frame 49: FAKE (Confidence: 13.3%)
+Frame 50: FAKE (Confidence: 12.9%)
+...(showing first 50 frames)
+
+END OF REPORT
