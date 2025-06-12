@@ -7,8 +7,6 @@ import dlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import tensorflow as tf
-from tensorflow.keras.models import load_model
 import threading
 import time
 from collections import deque
@@ -16,6 +14,15 @@ from PIL import Image, ImageTk
 import seaborn as sns
 from queue import Queue
 import gc
+import sys
+
+# Force CPU usage only - import TensorFlow after setting environment variables
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'   # Reduce TensorFlow logging noise
+
+# Now import TensorFlow after setting environment variables
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 
 
 class DeepfakeDetectionGUI:
@@ -563,12 +570,52 @@ class DeepfakeDetectionGUI:
         )
         self.processing_label.pack(side=tk.RIGHT, padx=15)
 
+    def safe_load_model(self, model_path):
+        """Safely load a TensorFlow model with extensive error handling"""
+        # Clear any existing TensorFlow session and free memory
+        tf.keras.backend.clear_session()
+        gc.collect()
+        
+        try:
+            # First try the simplest approach
+            self.update_status(f"🔄 Loading model: {os.path.basename(model_path)}...")
+            
+            # Use a separate function to isolate model loading
+            def load_model_isolated():
+                with tf.keras.utils.custom_object_scope({}):
+                    model = load_model(model_path, compile=False)
+                model.compile(
+                    optimizer='adam',
+                    loss='binary_crossentropy',
+                    metrics=['accuracy']
+                )
+                return model
+            
+            # Load the model
+            self.model = load_model_isolated()
+            
+            # Test the model with a simple prediction to ensure it works
+            test_data = np.zeros((1, 64, 340)).astype(np.float32)
+            _ = self.model.predict(test_data, verbose=0)
+            
+            self.update_status("✅ Model loaded and verified successfully")
+            return True
+            
+        except Exception as e:
+            self.update_status(f"❌ Error loading model: {str(e)}")
+            return False
+    
     def auto_load_model(self):
         """Automatically load the enhanced deepfake model if it exists"""
         if os.path.exists(self.model_path):
             try:
                 self.update_status("🔄 Auto-loading Enhanced Deepfake Model...")
-                self.model = load_model(self.model_path)
+                
+                # Use our safe model loading function
+                model_loaded = self.safe_load_model(self.model_path)
+                
+                if not model_loaded:
+                    raise Exception("Failed to load model safely")
 
                 # Initialize face detection
                 self.face_detector = dlib.get_frontal_face_detector()
@@ -630,7 +677,12 @@ class DeepfakeDetectionGUI:
         if file_path:
             try:
                 self.update_status("Loading alternative model...")
-                self.model = load_model(file_path)
+                
+                # Use our safe model loading function
+                model_loaded = self.safe_load_model(file_path)
+                
+                if not model_loaded:
+                    raise Exception("Failed to load model safely")
 
                 # Initialize face detection
                 self.face_detector = dlib.get_frontal_face_detector()
@@ -823,6 +875,9 @@ class DeepfakeDetectionGUI:
         self.is_analyzing = False
         self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
         self.update_status("⏸ Analysis stopped")
+        
+        # Clean up resources
+        gc.collect()
 
     def analyze_video(self):
         """Main video analysis loop with improved performance"""
@@ -852,8 +907,37 @@ class DeepfakeDetectionGUI:
 
                 # Make prediction when we have enough frames
                 if len(features_buffer) >= self.chunk_size:
-                    chunk = np.array(features_buffer[-self.chunk_size:])
-                    prediction = self.model.predict(chunk.reshape(1, self.chunk_size, -1), verbose=0)[0][0]
+                    # Make prediction with enhanced safety
+                    try:
+                        # Create a copy of the data to avoid memory issues
+                        chunk = np.array(features_buffer[-self.chunk_size:], copy=True)
+                        
+                        # Reshape with explicit dimensions
+                        input_data = chunk.reshape(1, self.chunk_size, -1).astype(np.float32)
+                        
+                        # Use a timeout mechanism for prediction
+                        def make_prediction():
+                            return self.model.predict(input_data, verbose=0)[0][0]
+                        
+                        # Run prediction in a separate thread with timeout
+                        prediction_thread = threading.Thread(target=lambda: make_prediction())
+                        prediction_thread.daemon = True
+                        prediction_thread.start()
+                        prediction_thread.join(timeout=2.0)  # 2 second timeout
+                        
+                        if prediction_thread.is_alive():
+                            # If prediction takes too long, skip this frame
+                            self.update_status("⚠️ Prediction timeout, skipping frame")
+                            continue
+                        
+                        # Get the prediction result
+                        prediction = make_prediction()
+                        
+                    except Exception as pred_error:
+                        self.update_status(f"⚠️ Prediction error: {str(pred_error)}")
+                        # Force garbage collection to free memory
+                        gc.collect()
+                        continue
 
                     self.prediction_history.append(prediction)
                     self.confidence_history.append(abs(prediction - 0.5) * 2)
@@ -1324,6 +1408,9 @@ class DeepfakeDetectionGUI:
         self.is_analyzing = False
         self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
         self.update_status("✅ Analysis completed successfully")
+        
+        # Clean up resources
+        gc.collect()
 
         # Show enhanced final results with custom dialog
         if self.prediction_history:
