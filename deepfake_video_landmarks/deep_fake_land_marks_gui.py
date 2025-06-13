@@ -18,7 +18,7 @@ import sys
 
 # Force CPU usage only - import TensorFlow after setting environment variables
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'   # Reduce TensorFlow logging noise
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging noise
 
 # Now import TensorFlow after setting environment variables
 import tensorflow as tf
@@ -50,7 +50,7 @@ class DeepfakeDetectionGUI:
         self.analysis_thread = None
         self.display_thread = None
         self.video_loading_thread = None
-        self.model_path = "enhanced_deepfake_lstm_model_fallback.h5"
+        self.model_path = "enhanced_deepfake_lstm_model_fallback.h5.h5"
 
         # Analysis parameters
         self.chunk_size = 64
@@ -575,11 +575,11 @@ class DeepfakeDetectionGUI:
         # Clear any existing TensorFlow session and free memory
         tf.keras.backend.clear_session()
         gc.collect()
-        
+
         try:
             # First try the simplest approach
             self.update_status(f"🔄 Loading model: {os.path.basename(model_path)}...")
-            
+
             # Use a separate function to isolate model loading
             def load_model_isolated():
                 with tf.keras.utils.custom_object_scope({}):
@@ -590,30 +590,30 @@ class DeepfakeDetectionGUI:
                     metrics=['accuracy']
                 )
                 return model
-            
+
             # Load the model
             self.model = load_model_isolated()
-            
+
             # Test the model with a simple prediction to ensure it works
             test_data = np.zeros((1, 64, 340)).astype(np.float32)
             _ = self.model.predict(test_data, verbose=0)
-            
+
             self.update_status("✅ Model loaded and verified successfully")
             return True
-            
+
         except Exception as e:
             self.update_status(f"❌ Error loading model: {str(e)}")
             return False
-    
+
     def auto_load_model(self):
         """Automatically load the enhanced deepfake model if it exists"""
         if os.path.exists(self.model_path):
             try:
                 self.update_status("🔄 Auto-loading Enhanced Deepfake Model...")
-                
+
                 # Use our safe model loading function
                 model_loaded = self.safe_load_model(self.model_path)
-                
+
                 if not model_loaded:
                     raise Exception("Failed to load model safely")
 
@@ -677,10 +677,10 @@ class DeepfakeDetectionGUI:
         if file_path:
             try:
                 self.update_status("Loading alternative model...")
-                
+
                 # Use our safe model loading function
                 model_loaded = self.safe_load_model(file_path)
-                
+
                 if not model_loaded:
                     raise Exception("Failed to load model safely")
 
@@ -875,7 +875,7 @@ class DeepfakeDetectionGUI:
         self.is_analyzing = False
         self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
         self.update_status("⏸ Analysis stopped")
-        
+
         # Clean up resources
         gc.collect()
 
@@ -911,28 +911,28 @@ class DeepfakeDetectionGUI:
                     try:
                         # Create a copy of the data to avoid memory issues
                         chunk = np.array(features_buffer[-self.chunk_size:], copy=True)
-                        
+
                         # Reshape with explicit dimensions
                         input_data = chunk.reshape(1, self.chunk_size, -1).astype(np.float32)
-                        
+
                         # Use a timeout mechanism for prediction
                         def make_prediction():
                             return self.model.predict(input_data, verbose=0)[0][0]
-                        
+
                         # Run prediction in a separate thread with timeout
                         prediction_thread = threading.Thread(target=lambda: make_prediction())
                         prediction_thread.daemon = True
                         prediction_thread.start()
                         prediction_thread.join(timeout=2.0)  # 2 second timeout
-                        
+
                         if prediction_thread.is_alive():
                             # If prediction takes too long, skip this frame
                             self.update_status("⚠️ Prediction timeout, skipping frame")
                             continue
-                        
+
                         # Get the prediction result
                         prediction = make_prediction()
-                        
+
                     except Exception as pred_error:
                         self.update_status(f"⚠️ Prediction error: {str(pred_error)}")
                         # Force garbage collection to free memory
@@ -1132,7 +1132,7 @@ class DeepfakeDetectionGUI:
         self.confidence_label.config(text=f"Confidence: {confidence:.1f}%")
 
     def update_charts(self):
-        """Update analysis charts with enhanced styling"""
+        """Update analysis charts with total frame calculations"""
         if not self.prediction_history:
             return
 
@@ -1141,7 +1141,7 @@ class DeepfakeDetectionGUI:
         self.ax2.clear()
         self.ax3.clear()
 
-        # Confidence over time with gradient
+        # Confidence over time
         confidence_data = list(self.confidence_history)
         if confidence_data:
             self.ax1.plot(confidence_data, color=self.colors['accent'], linewidth=2.5, alpha=0.8)
@@ -1154,114 +1154,57 @@ class DeepfakeDetectionGUI:
         self.ax1.set_ylim(0, 1)
         self.ax1.grid(True, alpha=0.2, color=self.colors['text_dim'])
 
-        # Simple and Clean Timeline Visualization - Much easier to understand
+        # Timeline visualization
         predictions = list(self.prediction_history)
         if len(predictions) > 5:
-            # Show recent timeline (last 100 predictions for clarity)
             timeline_length = min(len(predictions), 100)
             recent_predictions = predictions[-timeline_length:]
             recent_confidences = list(self.confidence_history)[-timeline_length:]
 
-            # Create simple line plot with filled areas
             x_values = range(len(recent_predictions))
+            self.ax2.plot(x_values, recent_predictions, color=self.colors['accent'], linewidth=3, alpha=0.8)
 
-            # Clear the axis
-            self.ax2.clear()
-
-            # Plot the prediction line
-            self.ax2.plot(x_values, recent_predictions, color=self.colors['accent'],
-                          linewidth=3, alpha=0.8, label='Predictions')
-
-            # Fill areas based on prediction
-            # Green area for REAL predictions (above 0.5)
             real_mask = np.array(recent_predictions) > 0.5
-            if np.any(real_mask):
-                self.ax2.fill_between(x_values, recent_predictions, 0.5,
-                                      where=real_mask, color=self.colors['real'],
-                                      alpha=0.3, label='REAL Regions')
-
-            # Red area for FAKE predictions (below 0.5)
             fake_mask = np.array(recent_predictions) < 0.5
+
+            if np.any(real_mask):
+                self.ax2.fill_between(x_values, recent_predictions, 0.5, where=real_mask,
+                                      color=self.colors['real'], alpha=0.3, label='REAL')
             if np.any(fake_mask):
-                self.ax2.fill_between(x_values, recent_predictions, 0.5,
-                                      where=fake_mask, color=self.colors['fake'],
-                                      alpha=0.3, label='FAKE Regions')
+                self.ax2.fill_between(x_values, recent_predictions, 0.5, where=fake_mask,
+                                      color=self.colors['fake'], alpha=0.3, label='FAKE')
 
-            # Add threshold line
-            self.ax2.axhline(y=0.5, color=self.colors['text_dim'],
-                             linestyle='--', alpha=0.7, linewidth=2,
-                             label='Decision Threshold')
-
-            # Add confidence indicators as scatter points on high confidence areas
-            high_conf_indices = [i for i, conf in enumerate(recent_confidences) if conf > 0.8]
-            if high_conf_indices:
-                high_conf_predictions = [recent_predictions[i] for i in high_conf_indices]
-                self.ax2.scatter(high_conf_indices, high_conf_predictions,
-                                 color='white', s=40, marker='o',
-                                 edgecolors='black', linewidth=1,
-                                 label='High Confidence', zorder=5)
-
-            # Customize the plot
+            self.ax2.axhline(y=0.5, color=self.colors['text_dim'], linestyle='--', alpha=0.7, linewidth=2)
             self.ax2.set_ylim(0, 1)
             self.ax2.set_xlim(0, len(recent_predictions))
-            self.ax2.set_xlabel('Recent Frames →', color=self.colors['text_dim'], fontsize=10)
-            self.ax2.set_ylabel('Prediction Score', color=self.colors['text_dim'], fontsize=10)
-
-            # Add clear labels
-            self.ax2.text(0.02, 0.95, 'REAL', transform=self.ax2.transAxes,
-                          fontsize=12, fontweight='bold', color=self.colors['real'],
-                          bbox=dict(boxstyle="round,pad=0.3", facecolor=self.colors['real'], alpha=0.2))
-
-            self.ax2.text(0.02, 0.05, 'FAKE', transform=self.ax2.transAxes,
-                          fontsize=12, fontweight='bold', color=self.colors['fake'],
-                          bbox=dict(boxstyle="round,pad=0.3", facecolor=self.colors['fake'], alpha=0.2))
-
-            # Add legend
-            legend = self.ax2.legend(loc='upper right', fontsize=8,
-                                     facecolor=self.colors['bg'], edgecolor=self.colors['text_dim'])
-            # Set legend text color to white
-            for text in legend.get_texts():
-                text.set_color('white')
-
-            # Add grid for better readability
             self.ax2.grid(True, alpha=0.3, color=self.colors['text_dim'])
 
-        else:
-            # Not enough data yet
-            self.ax2.text(0.5, 0.5, 'Analyzing...\nNeed more frames for timeline',
-                          transform=self.ax2.transAxes, ha='center', va='center',
-                          fontsize=14, color=self.colors['text_dim'])
-
-        self.ax2.set_title('📈 Simple Timeline (Green=Real, Red=Fake)', color=self.colors['text'],
-                           fontsize=12, fontweight='bold', pad=15)
+        self.ax2.set_title('Analysis Timeline', color=self.colors['text'], fontsize=12, fontweight='bold', pad=15)
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-        # HORIZONTAL BAR CHART - Real vs Fake Percentages
+        # Bar chart based on total frames
         if self.prediction_history:
-            # Calculate percentages
-            total_frames = len(predictions)
-            real_frames = sum(1 for p in predictions if p > 0.5)
-            fake_frames = total_frames - real_frames
+            analyzed_frames = len(predictions)
+            analyzed_real_count = sum(1 for p in predictions if p > 0.5)
 
-            real_percentage = (real_frames / total_frames) * 100
-            fake_percentage = (fake_frames / total_frames) * 100
+            # Calculate percentages from analyzed frames
+            real_percentage = (analyzed_real_count / analyzed_frames) * 100
+            fake_percentage = 100 - real_percentage
 
-            # Clear the axis
-            self.ax3.clear()
+            # Apply to total frames
+            total_real_frames = int((real_percentage / 100) * self.total_video_frames)
+            total_fake_frames = self.total_video_frames - total_real_frames
 
-            # Create horizontal bar chart
             categories = ['REAL', 'FAKE']
             percentages = [real_percentage, fake_percentage]
+            frame_counts = [total_real_frames, total_fake_frames]
             colors = [self.colors['real'], self.colors['fake']]
 
-            # Create the bars
             bars = self.ax3.barh(categories, percentages, color=colors, alpha=0.8, height=0.6)
 
-            # Add percentage labels on the bars with category names
-            for i, (bar, percentage, category) in enumerate(zip(bars, percentages, categories)):
+            for i, (bar, percentage, count, category) in enumerate(zip(bars, percentages, frame_counts, categories)):
                 width = bar.get_width()
-                # Position text in the middle of the bar if percentage > 10%, otherwise outside
                 if percentage > 10:
                     x_pos = width / 2
                     ha = 'center'
@@ -1275,55 +1218,27 @@ class DeepfakeDetectionGUI:
                     fontweight = 'normal'
                     text = f'{category}: {percentage:.1f}%'
 
-                self.ax3.text(x_pos, bar.get_y() + bar.get_height() / 2,
-                              text,
-                              ha=ha, va='center',
-                              color=color, fontsize=12, fontweight=fontweight)
+                self.ax3.text(x_pos, bar.get_y() + bar.get_height() / 2, text,
+                              ha=ha, va='center', color=color, fontsize=11, fontweight=fontweight)
 
-            # Add frame counts as additional labels
-            for i, (bar, category) in enumerate(zip(bars, categories)):
-                frame_count = real_frames if category == 'REAL' else fake_frames
-                self.ax3.text(-2, bar.get_y() + bar.get_height() / 2,
-                              f'{frame_count:,} frames',
-                              ha='right', va='center',
-                              color=self.colors['text_dim'], fontsize=10)
-
-            # Customize the chart
+            # Clean up the axes
             self.ax3.set_xlim(0, 100)
             self.ax3.set_xlabel('Percentage (%)', color=self.colors['text_dim'], fontsize=10)
-            self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=10)
 
-            # Remove y-axis ticks and labels
+            # Remove all y-axis elements
             self.ax3.set_yticks([])
-            self.ax3.tick_params(left=False)
+            self.ax3.set_yticklabels([])
+            self.ax3.tick_params(left=False, right=False, labelleft=False, labelright=False)
 
-            # Add grid for better readability
+            # Only show x-axis grid
             self.ax3.grid(True, alpha=0.3, color=self.colors['text_dim'], axis='x')
-
-            # Add a subtle background
             self.ax3.set_facecolor(self.colors['bg'])
 
-            # Add total frames text
-            self.ax3.text(50, -0.8, f'Total Analyzed: {total_frames:,} frames',
-                          ha='center', va='center',
-                          color=self.colors['text_dim'], fontsize=9,
-                          transform=self.ax3.transData)
+            # Add total frames info at bottom
+            self.ax3.text(50, -0.5, f'Total Video: {self.total_video_frames:,} frames',
+                          ha='center', va='center', color=self.colors['text_dim'], fontsize=10)
 
-        else:
-            # No data yet - show empty chart
-            self.ax3.clear()
-            self.ax3.text(0.5, 0.5, 'Bar Chart Ready\nAwaiting Analysis...',
-                          transform=self.ax3.transAxes, ha='center', va='center',
-                          fontsize=12, color=self.colors['text_dim'])
-            self.ax3.set_xlim(0, 100)
-            self.ax3.set_xlabel('Percentage (%)', color=self.colors['text_dim'], fontsize=10)
-            self.ax3.set_ylabel('Classification', color=self.colors['text_dim'], fontsize=10)
-            self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=10)
-            self.ax3.set_facecolor(self.colors['bg'])
-
-
-
-        self.ax3.set_title('📊 Frame Classification Percentage', color=self.colors['text'],
+        self.ax3.set_title('Total Video Classification', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=15)
 
         plt.tight_layout(pad=1.5)
@@ -1333,35 +1248,28 @@ class DeepfakeDetectionGUI:
         self.update_statistics()
 
     def update_statistics(self):
-        """Update statistics display with enhanced formatting including chunk analysis"""
+        """Update statistics display with enhanced formatting based on total video frames"""
         if not self.prediction_history:
             return
 
         predictions = list(self.prediction_history)
         confidences = list(self.confidence_history)
 
-        real_count = sum(1 for p in predictions if p > 0.5)
-        fake_count = len(predictions) - real_count
+        # Calculate percentages based on analyzed frames
+        analyzed_real_count = sum(1 for p in predictions if p > 0.5)
+        analyzed_fake_count = len(predictions) - analyzed_real_count
+
+        # Calculate percentages from analyzed frames
+        real_percentage = (analyzed_real_count / len(predictions)) * 100
+        fake_percentage = (analyzed_fake_count / len(predictions)) * 100
+
+        # Apply these percentages to total video frames
+        total_real_frames = int((real_percentage / 100) * self.total_video_frames)
+        total_fake_frames = self.total_video_frames - total_real_frames
+
         avg_confidence = np.mean(confidences) if confidences else 0
         max_confidence = np.max(confidences) if confidences else 0
         min_confidence = np.min(confidences) if confidences else 0
-
-        # Calculate chunk statistics
-        num_chunks = len(predictions) // self.chunk_size if len(predictions) >= self.chunk_size else 0
-        real_chunks = 0
-        fake_chunks = 0
-
-        if num_chunks > 0:
-            for i in range(num_chunks):
-                chunk_start = i * self.chunk_size
-                chunk_end = chunk_start + self.chunk_size
-                chunk_predictions = predictions[chunk_start:chunk_end]
-
-                chunk_real_count = sum(1 for p in chunk_predictions if p > 0.5)
-                if chunk_real_count > self.chunk_size // 2:
-                    real_chunks += 1
-                else:
-                    fake_chunks += 1
 
         # Calculate trend
         if len(predictions) >= 10:
@@ -1371,28 +1279,27 @@ class DeepfakeDetectionGUI:
             trend_text = "➡️ Analyzing..."
 
         stats_text = f"""
-╔══════════════════════════════════════════════════════════════╗
-║                        ANALYSIS SUMMARY                      ║
-╠══════════════════════════════════════════════════════════════╣
-║ FRAME ANALYSIS                                               ║
-║ Total Frames Analyzed: {len(predictions):>6}                             ║
-║ Real Predictions:      {real_count:>6} ({real_count / len(predictions) * 100:>5.1f}%)                ║
-║ Fake Predictions:      {fake_count:>6} ({fake_count / len(predictions) * 100:>5.1f}%)                ║
-║                                                              ║
-║ CHUNK ANALYSIS ({self.chunk_size} frames per chunk)                           ║
-║ Total Chunks:          {num_chunks:>6}                             ║
-║ Real Chunks:           {real_chunks:>6} ({real_chunks / max(1, num_chunks) * 100:>5.1f}%)                ║
-║ Fake Chunks:           {fake_chunks:>6} ({fake_chunks / max(1, num_chunks) * 100:>5.1f}%)                ║
-║                                                              ║
-║ CONFIDENCE METRICS                                           ║
-║ Average Confidence:    {avg_confidence * 100:>5.1f}%                          ║
-║ Peak Confidence:       {max_confidence * 100:>5.1f}%                          ║
-║ Lowest Confidence:     {min_confidence * 100:>5.1f}%                          ║
-║                                                              ║
-║ CURRENT STATUS                                               ║
-║ Trend:                 {trend_text:<20}                    ║
-║ Latest Prediction:     {'REAL' if predictions[-1] > 0.5 else 'FAKE':<6} ({confidences[-1] * 100:>5.1f}%)              ║
-╚══════════════════════════════════════════════════════════════╝
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                        ANALYSIS SUMMARY                      ║
+    ╠══════════════════════════════════════════════════════════════╣
+    ║ TOTAL VIDEO ANALYSIS                                         ║
+    ║ Total Frames:          {self.total_video_frames:>6}                             ║
+    ║ Real Frames:           {total_real_frames:>6} ({real_percentage:>5.1f}%)                ║
+    ║ Fake Frames:           {total_fake_frames:>6} ({fake_percentage:>5.1f}%)                ║
+    ║                                                              ║
+    ║ SAMPLE ANALYSIS                                              ║
+    ║ Frames Analyzed:       {len(predictions):>6}                             ║
+    ║ Analysis Coverage:     {(len(predictions) / self.total_video_frames) * 100:>5.1f}%                          ║
+    ║                                                              ║
+    ║ CONFIDENCE METRICS                                           ║
+    ║ Average Confidence:    {avg_confidence * 100:>5.1f}%                          ║
+    ║ Peak Confidence:       {max_confidence * 100:>5.1f}%                          ║
+    ║ Lowest Confidence:     {min_confidence * 100:>5.1f}%                          ║
+    ║                                                              ║
+    ║ CURRENT STATUS                                               ║
+    ║ Trend:                 {trend_text:<20}                    ║
+    ║ Latest Prediction:     {'REAL' if predictions[-1] > 0.5 else 'FAKE':<6} ({confidences[-1] * 100:>5.1f}%)              ║
+    ╚══════════════════════════════════════════════════════════════╝
         """
 
         self.stats_text.delete(1.0, tk.END)
@@ -1408,7 +1315,7 @@ class DeepfakeDetectionGUI:
         self.is_analyzing = False
         self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
         self.update_status("✅ Analysis completed successfully")
-        
+
         # Clean up resources
         gc.collect()
 
@@ -1416,77 +1323,89 @@ class DeepfakeDetectionGUI:
         if self.prediction_history:
             self.show_beautiful_results_dialog()
 
+    def export_simple_report(self, real_percentage, fake_percentage, total_real_frames, total_fake_frames,
+                             avg_confidence):
+        """Export simple analysis report"""
+        try:
+            from datetime import datetime
+
+            # Determine verdict
+            if real_percentage > 70:
+                verdict = "REAL"
+            elif real_percentage < 30:
+                verdict = "FAKE"
+            else:
+                verdict = "UNCERTAIN"
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_filename = f"deepfake_analysis_{timestamp}.txt"
+            video_name = os.path.basename(self.current_video) if self.current_video else "Unknown"
+
+            report_content = f"""DEEPFAKE ANALYSIS REPORT
+    Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+    {'=' * 40}
+
+    FILE: {video_name}
+    VERDICT: {verdict}
+
+    RESULTS:
+    Total Frames: {self.total_video_frames:,}
+    Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
+    Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
+    Average Confidence: {avg_confidence:.1f}%
+
+    ANALYSIS DETAILS:
+    Frames Analyzed: {len(self.prediction_history):,}
+    Coverage: {(len(self.prediction_history) / self.total_video_frames) * 100:.1f}%
+    Model: Enhanced LSTM Deepfake Detector
+    """
+
+            with open(report_filename, 'w') as f:
+                f.write(report_content)
+
+            messagebox.showinfo("Export Complete", f"Report saved: {report_filename}")
+
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
+
     def show_beautiful_results_dialog(self):
-        """Show a beautiful, informative results dialog"""
+        """Show a short, direct results dialog"""
         predictions = list(self.prediction_history)
         confidences = list(self.confidence_history)
 
-        # Calculate accurate statistics
-        total_frames = len(predictions)
-        real_frames = sum(1 for p in predictions if p > 0.5)
-        fake_frames = total_frames - real_frames
-        uncertain_frames = sum(1 for p in predictions if 0.3 <= p <= 0.7)
+        # Calculate percentages based on analyzed frames
+        analyzed_frames = len(predictions)
+        analyzed_real_count = sum(1 for p in predictions if p > 0.5)
 
-        real_pct = (real_frames / total_frames) * 100
-        fake_pct = (fake_frames / total_frames) * 100
-        uncertain_pct = (uncertain_frames / total_frames) * 100
+        # Calculate percentages from analyzed frames
+        real_percentage = (analyzed_real_count / analyzed_frames) * 100
+        fake_percentage = 100 - real_percentage
 
-        # Overall verdict based on majority
-        if real_pct > fake_pct:
-            overall_verdict = "AUTHENTIC"
-            verdict_confidence = real_pct
+        # Apply these percentages to total video frames
+        total_real_frames = int((real_percentage / 100) * self.total_video_frames)
+        total_fake_frames = self.total_video_frames - total_real_frames
+
+        # Determine verdict based on your criteria
+        if real_percentage > 80:
+            verdict = "REAL"
             verdict_icon = "✅"
             verdict_color = self.colors['real']
-        else:
-            overall_verdict = "DEEPFAKE DETECTED"
-            verdict_confidence = fake_pct
-            verdict_icon = "⚠️"
+        elif real_percentage < 30:
+            verdict = "FAKE"
+            verdict_icon = "❌"
             verdict_color = self.colors['fake']
-
-        # Calculate confidence metrics
-        avg_confidence = np.mean(confidences) * 100 if confidences else 0
-        max_confidence = np.max(confidences) * 100 if confidences else 0
-        min_confidence = np.min(confidences) * 100 if confidences else 0
-
-        # Determine reliability
-        if avg_confidence > 85:
-            reliability = "VERY HIGH"
-            reliability_icon = "🟢"
-        elif avg_confidence > 70:
-            reliability = "HIGH"
-            reliability_icon = "🟡"
-        elif avg_confidence > 50:
-            reliability = "MODERATE"
-            reliability_icon = "🟠"
         else:
-            reliability = "LOW"
-            reliability_icon = "🔴"
+            verdict = "UNCERTAIN"
+            verdict_icon = "❓"
+            verdict_color = self.colors['uncertain']
 
-        # Calculate video information
-        video_name = os.path.basename(self.current_video) if self.current_video else "Unknown"
-        video_duration = (self.total_video_frames / self.video_fps) if self.video_fps > 0 else 0
-        duration_minutes = int(video_duration // 60)
-        duration_seconds = int(video_duration % 60)
+        # Calculate average confidence
+        avg_confidence = np.mean(confidences) * 100 if confidences else 0
 
-        # Calculate suspicious segments
-        suspicious_segments = []
-        window_size = 20  # Look for consecutive fake predictions
-
-        for i in range(len(predictions) - window_size):
-            window = predictions[i:i + window_size]
-            fake_ratio = sum(1 for p in window if p < 0.5) / window_size
-
-            if fake_ratio > 0.7:  # 70% fake predictions in window
-                start_time = (i / len(predictions)) * video_duration if video_duration > 0 else 0
-                suspicious_segments.append(f"{int(start_time // 60):02d}:{int(start_time % 60):02d}")
-
-        # Remove duplicates and limit to top 5
-        suspicious_segments = list(dict.fromkeys(suspicious_segments))[:5]
-
-        # Create custom dialog
+        # Create simple dialog
         result_dialog = tk.Toplevel(self.root)
-        result_dialog.title("🔍 Deepfake Analysis Results")
-        result_dialog.geometry("700x800")
+        result_dialog.title("🔍 Analysis Results")
+        result_dialog.geometry("500x400")
         result_dialog.configure(bg=self.colors['bg'])
         result_dialog.resizable(False, False)
 
@@ -1505,171 +1424,68 @@ class DeepfakeDetectionGUI:
         header_inner = tk.Frame(header_frame, bg=self.colors['card'])
         header_inner.pack(pady=20)
 
-        # Title with icon
+        # Title
         title_label = tk.Label(
             header_inner,
-            text=f"{verdict_icon} ANALYSIS COMPLETE",
-            font=('Segoe UI', 24, 'bold'),
+            text=f"{verdict_icon} {verdict}",
+            font=('Segoe UI', 28, 'bold'),
             fg=verdict_color,
             bg=self.colors['card']
         )
         title_label.pack()
 
-        subtitle_label = tk.Label(
-            header_inner,
-            text=f"Deep Learning Video Forensics Report",
+        # Results section
+        results_frame = tk.Frame(main_frame, bg=self.colors['card_light'], relief=tk.FLAT, bd=0)
+        results_frame.pack(fill=tk.X, pady=(0, 20))
+
+        results_inner = tk.Frame(results_frame, bg=self.colors['card_light'])
+        results_inner.pack(pady=20)
+
+        # Simple results
+        tk.Label(
+            results_inner,
+            text="ANALYSIS RESULTS",
+            font=('Segoe UI', 16, 'bold'),
+            fg=self.colors['text'],
+            bg=self.colors['card_light']
+        ).pack()
+
+        # Results text
+        results_text = f"""
+    Total Frames: {self.total_video_frames:,}
+    Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
+    Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
+
+    Average Confidence: {avg_confidence:.1f}%
+    Frames Processed: {self.total_video_frames:,}
+        """
+
+        results_label = tk.Label(
+            results_inner,
+            text=results_text,
             font=('Segoe UI', 12),
-            fg=self.colors['text_dim'],
-            bg=self.colors['card']
-        )
-        subtitle_label.pack(pady=(5, 0))
-
-        # Main verdict section
-        verdict_frame = tk.Frame(main_frame, bg=self.colors['card_light'], relief=tk.FLAT, bd=0)
-        verdict_frame.pack(fill=tk.X, pady=(0, 15))
-
-        verdict_inner = tk.Frame(verdict_frame, bg=self.colors['card_light'])
-        verdict_inner.pack(pady=20)
-
-        verdict_label = tk.Label(
-            verdict_inner,
-            text=f"VERDICT: {overall_verdict}",
-            font=('Segoe UI', 20, 'bold'),
-            fg=verdict_color,
-            bg=self.colors['card_light']
-        )
-        verdict_label.pack()
-
-        confidence_label = tk.Label(
-            verdict_inner,
-            text=f"Confidence: {verdict_confidence:.1f}%",
-            font=('Segoe UI', 14),
             fg=self.colors['text'],
-            bg=self.colors['card_light']
+            bg=self.colors['card_light'],
+            justify=tk.CENTER
         )
-        confidence_label.pack(pady=(5, 0))
+        results_label.pack(pady=10)
 
-        # Video information section
-        video_info_frame = tk.Frame(main_frame, bg=self.colors['card'], relief=tk.FLAT, bd=0)
-        video_info_frame.pack(fill=tk.X, pady=(0, 15))
-
-        video_info_inner = tk.Frame(video_info_frame, bg=self.colors['card'])
-        video_info_inner.pack(pady=15, padx=20)
-
-        tk.Label(
-            video_info_inner,
-            text="📹 VIDEO INFORMATION",
-            font=('Segoe UI', 14, 'bold'),
-            fg=self.colors['text'],
-            bg=self.colors['card']
-        ).pack(anchor=tk.W)
-
-        video_details = tk.Text(
-            video_info_inner,
-            height=4,
-            bg=self.colors['bg'],
-            fg=self.colors['text'],
-            font=('Consolas', 10),
-            relief=tk.FLAT,
-            bd=0,
-            wrap=tk.WORD
-        )
-        video_details.pack(fill=tk.X, pady=(10, 0))
-
-        video_info_text = f"""File: {video_name}
-Duration: {duration_minutes:02d}:{duration_seconds:02d} ({video_duration:.1f} seconds)
-Total Frames: {self.total_video_frames:,} | Frame Rate: {self.video_fps:.1f} fps
-Frames Analyzed: {total_frames:,} | Analysis Coverage: {(total_frames / max(1, self.total_video_frames)) * 100:.1f}%"""
-
-        video_details.insert(tk.END, video_info_text)
-        video_details.config(state=tk.DISABLED)
-
-        # Detailed analysis section
-        analysis_frame = tk.Frame(main_frame, bg=self.colors['card'], relief=tk.FLAT, bd=0)
-        analysis_frame.pack(fill=tk.X, pady=(0, 15))
-
-        analysis_inner = tk.Frame(analysis_frame, bg=self.colors['card'])
-        analysis_inner.pack(pady=15, padx=20)
-
-        tk.Label(
-            analysis_inner,
-            text="📊 DETAILED ANALYSIS",
-            font=('Segoe UI', 14, 'bold'),
-            fg=self.colors['text'],
-            bg=self.colors['card']
-        ).pack(anchor=tk.W)
-
-        analysis_details = tk.Text(
-            analysis_inner,
-            height=8,
-            bg=self.colors['bg'],
-            fg=self.colors['text'],
-            font=('Consolas', 10),
-            relief=tk.FLAT,
-            bd=0,
-            wrap=tk.WORD
-        )
-        analysis_details.pack(fill=tk.X, pady=(10, 0))
-
-        analysis_text = f"""FRAME CLASSIFICATION:
-├─ Authentic Frames: {real_frames:,} ({real_pct:.1f}%)
-├─ Manipulated Frames: {fake_frames:,} ({fake_pct:.1f}%)
-└─ Uncertain Frames: {uncertain_frames:,} ({uncertain_pct:.1f}%)
-
-CONFIDENCE METRICS:
-├─ Average Confidence: {avg_confidence:.1f}%
-├─ Peak Confidence: {max_confidence:.1f}%
-└─ Minimum Confidence: {min_confidence:.1f}%
-
-TEMPORAL ANALYSIS:
-├─ Suspicious Time Segments: {len(suspicious_segments)} detected
-└─ Pattern Consistency: {'High' if len(suspicious_segments) < 3 else 'Variable'}"""
-
-        analysis_details.insert(tk.END, analysis_text)
-        analysis_details.config(state=tk.DISABLED)
-
-        # Suspicious segments section (if any)
-        if suspicious_segments:
-            segments_frame = tk.Frame(main_frame, bg=self.colors['card'], relief=tk.FLAT, bd=0)
-            segments_frame.pack(fill=tk.X, pady=(0, 15))
-
-            segments_inner = tk.Frame(segments_frame, bg=self.colors['card'])
-            segments_inner.pack(pady=15, padx=20)
-
-            tk.Label(
-                segments_inner,
-                text="⚠️ SUSPICIOUS TIME SEGMENTS",
-                font=('Segoe UI', 14, 'bold'),
-                fg=self.colors['warning'],
-                bg=self.colors['card']
-            ).pack(anchor=tk.W)
-
-            segments_text = tk.Label(
-                segments_inner,
-                text=f"Review these time periods: {', '.join(suspicious_segments)}",
-                font=('Segoe UI', 11),
-                fg=self.colors['text'],
-                bg=self.colors['card'],
-                wraplength=600,
-                justify=tk.LEFT
-            )
-            segments_text.pack(anchor=tk.W, pady=(10, 0))
-
-        # Action buttons
+        # Buttons
         button_frame = tk.Frame(main_frame, bg=self.colors['bg'])
         button_frame.pack(fill=tk.X, pady=(20, 0))
 
         # Export button
         export_btn = self.create_modern_button(
-            button_frame, "📄 Export Report",
-            lambda: self.export_analysis_report(predictions, confidences, video_name, video_duration),
+            button_frame, "📄 Export",
+            lambda: self.export_simple_report(real_percentage, fake_percentage, total_real_frames, total_fake_frames,
+                                              avg_confidence),
             self.colors['accent']
         )
         export_btn.pack(side=tk.LEFT)
 
         # Close button
         close_btn = self.create_modern_button(
-            button_frame, "✅ Close", result_dialog.destroy, self.colors['success']
+            button_frame, "Close", result_dialog.destroy, self.colors['success']
         )
         close_btn.pack(side=tk.RIGHT)
 
