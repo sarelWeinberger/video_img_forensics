@@ -16,6 +16,7 @@ The Java service implements multiple forensic analysis algorithms:
 6. **Median Noise Analysis** - Applies a median filter to the image and examines the residual noise patterns
 7. **Grids Analysis** - Examines the alignment of JPEG compression blocks across the image
 8. **Grids Inversed Analysis** - Provides an alternative visualization of JPEG grid inconsistencies
+9. **Manipulated Score Analysis** - Uses deep learning to detect image manipulations and generate a heatmap with confidence scores
 
 ### React Frontend
 
@@ -34,13 +35,97 @@ The React frontend provides:
 - Java 8 (JDK 1.8)
 - MongoDB
 - Maven
+- Python 3.7 or higher
 - Node.js and npm
 
-### Java Backend Setup
+### Complete Setup Process
 
-1. Configure MongoDB:
-   - Start MongoDB service
-   - Default connection is localhost:27017
+#### 1. MongoDB Setup
+
+1. Ensure MongoDB is running:
+   ```bash
+   systemctl status mongodb
+   ```
+   
+   If it's not running, start it:
+   ```bash
+   sudo systemctl start mongodb
+   ```
+
+2. Verify MongoDB is working:
+   ```bash
+   mongo --eval "db.adminCommand('listDatabases')"
+   ```
+
+3. After running the Java service, you should see a database called "ForensicDatabase":
+   ```bash
+   mongo --eval "db.adminCommand('listDatabases')"
+   ```
+   
+   The output should include:
+   ```
+   {
+     "name" : "ForensicDatabase",
+     "sizeOnDisk" : 81920,
+     "empty" : false
+   }
+   ```
+
+4. You can check the collections in the database:
+   ```bash
+   mongo ForensicDatabase --eval "db.getCollectionNames()"
+   ```
+   
+   The output should include:
+   ```
+   [ "ForensicReport", "test" ]
+   ```
+
+5. The "ForensicReport" collection stores the results of the forensic analysis:
+   ```bash
+   mongo ForensicDatabase --eval "db.ForensicReport.find().limit(1).pretty()"
+   ```
+
+#### 2. Python Service Setup (Must be started first)
+
+1. Navigate to the Python service directory:
+   ```bash
+   cd python_service
+   ```
+
+2. Install the correct version of Werkzeug (to avoid dependency conflicts):
+   ```bash
+   pip install werkzeug==2.0.1
+   ```
+
+3. Install other dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Start the Python service:
+   ```bash
+   python3 manipulated_score_service.py
+   ```
+   
+5. Verify the Python service is running:
+   ```bash
+   curl -v http://localhost:5000/predict
+   ```
+   
+   You should get a 404 response, which is normal since we're not sending any data.
+
+#### 3. Java Backend Setup
+
+1. Before starting the Java service, ensure no other Java processes are using port 8080:
+   ```bash
+   ps aux | grep java
+   ```
+   
+   If there are existing processes, stop them:
+   ```bash
+   kill <PID>
+   ```
 
 2. Configure the application:
    - Edit `java_service/src/main/resources/remote.properties` to set:
@@ -53,7 +138,10 @@ The React frontend provides:
    mvn clean package tomcat7:run
    ```
 
-4. The service will be available at http://localhost:8080/
+4. Verify the Java service is running:
+   ```bash
+   curl -v http://localhost:8080/mmapi/media/verificationreport/getreport?hash=test
+   ```
 
 ### React Frontend Setup
 
@@ -99,9 +187,43 @@ The React frontend provides:
 
 ## Troubleshooting
 
-- **Image loading issues**: Ensure the image directory has proper read and execute permissions
-- **MongoDB connection errors**: Verify MongoDB is running and accessible
-- **CORS issues**: Check that the CORSFilter is properly configured in the Java service
+### Common Issues
+
+1. **"Address already in use" Error**:
+   ```
+   SEVERE: Failed to initialize end point associated with ProtocolHandler ["http-bio-8080"]
+   java.net.BindException: Address already in use (Bind failed) <null>:8080
+   ```
+   
+   **Solution**: Another process is using port 8080. Find and stop it:
+   ```bash
+   ps aux | grep java
+   kill <PID>
+   ```
+
+2. **Python Service Dependency Issues**:
+   ```
+   ImportError: cannot import name 'url_quote' from 'werkzeug.urls'
+   ```
+   
+   **Solution**: Install the correct version of Werkzeug:
+   ```bash
+   pip install werkzeug==2.0.1
+   ```
+
+3. **Java Service 404 Errors**:
+   - Ensure both the Java and Python services are running
+   - Check that the Python service is started before the Java service
+   - Verify the `manipulationReportPath` in `remote.properties` is correct
+   - Check that the directory has proper read and execute permissions
+
+4. **MongoDB Connection Errors**:
+   - Verify MongoDB is running: `systemctl status mongodb`
+   - Check MongoDB connection settings in `remote.properties`
+
+5. **CORS Issues**:
+   - Ensure the `CORSFilter` is properly configured in `web.xml`
+   - Check that the allowed origins match your frontend application
 
 ## Citations
 
@@ -134,8 +256,3 @@ In either case, you must also cite the original algorithm publication. The READM
 
 This project is licensed under the terms specified in the original repository.
 
-## Acknowledgments
-
-Original project by Markos Zampoglou <markzampoglou@iti.gr> and the MKLab-ITI team.
-
-React frontend and additional improvements added in 2025.

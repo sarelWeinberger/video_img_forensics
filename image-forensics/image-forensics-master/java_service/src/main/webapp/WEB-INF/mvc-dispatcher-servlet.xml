@@ -8,7 +8,7 @@ http://www.springframework.org/schema/context http://www.springframework.org/sch
 
     <mvc:default-servlet-handler/>
 
-    <context:component-scan base-package="gr.iti.mklab.reveal.web"/>
+    <context:component-scan base-package="gr.iti.mklab.reveal"/>
 
     <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
         <property name="prefix" value="/WEB-INF/pages/"/>
@@ -44,7 +44,7 @@ http://www.springframework.org/schema/context http://www.springframework.org/sch
     </bean>
 
     <mvc:resources mapping="/api-docs/**" location="/WEB-INF/resources/" />
-    <mvc:resources mapping="/images/**" location="file:/home/azureuser/image-forensics/images/" />
+    <mvc:resources mapping="/images/**" location="file:/root/video_img_forensics/image-forensics/images/" />
     <mvc:default-servlet-handler />
 
 </beans>
