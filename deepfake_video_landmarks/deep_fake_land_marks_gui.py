@@ -1252,12 +1252,6 @@ class DeepfakeDetectionGUI:
                           f'Total Analyzed: {total_analyzed_frames:,} frames | Real: {real_count:,} | Fake: {fake_count:,}',
                           ha='center', va='center', color=self.colors['text_dim'], fontsize=9, fontweight='bold')
 
-            # DEBUG: Print values to console to verify calculations
-            print(f"DEBUG - Bar Chart Update:")
-            print(f"  Total predictions: {total_analyzed_frames}")
-            print(f"  Real count: {real_count} ({real_percentage:.1f}%)")
-            print(f"  Fake count: {fake_count} ({fake_percentage:.1f}%)")
-            print(f"  Total percentage: {real_percentage + fake_percentage:.1f}%")
 
         self.ax3.set_title('Cumulative Analysis Results (All Predictions)', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=15)
