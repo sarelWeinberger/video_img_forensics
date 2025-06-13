@@ -1132,7 +1132,7 @@ class DeepfakeDetectionGUI:
         self.confidence_label.config(text=f"Confidence: {confidence:.1f}%")
 
     def update_charts(self):
-        """Update analysis charts with total frame calculations"""
+        """Update analysis charts with FIXED bar chart calculations"""
         if not self.prediction_history:
             return
 
@@ -1183,62 +1183,83 @@ class DeepfakeDetectionGUI:
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-        # Bar chart based on total frames
+        # COMPLETELY FIXED Bar chart - Cumulative percentages over ALL predictions so far
         if self.prediction_history:
-            analyzed_frames = len(predictions)
-            analyzed_real_count = sum(1 for p in predictions if p > 0.5)
+            # Get ALL predictions made so far (this is the key fix)
+            all_predictions = list(self.prediction_history)
+            total_analyzed_frames = len(all_predictions)
 
-            # Calculate percentages from analyzed frames
-            real_percentage = (analyzed_real_count / analyzed_frames) * 100
-            fake_percentage = 100 - real_percentage
+            # Count REAL and FAKE from all predictions made so far
+            real_count = sum(1 for p in all_predictions if p > 0.5)
+            fake_count = total_analyzed_frames - real_count
 
-            # Apply to total frames
-            total_real_frames = int((real_percentage / 100) * self.total_video_frames)
-            total_fake_frames = self.total_video_frames - total_real_frames
+            # Calculate cumulative percentages (these should ALWAYS add up to 100%)
+            real_percentage = (real_count / total_analyzed_frames) * 100 if total_analyzed_frames > 0 else 0
+            fake_percentage = (fake_count / total_analyzed_frames) * 100 if total_analyzed_frames > 0 else 0
 
+            # SAFETY CHECK: Ensure percentages add up to 100% (fix any floating point errors)
+            total_percentage = real_percentage + fake_percentage
+            if total_percentage > 0:
+                real_percentage = (real_percentage / total_percentage) * 100
+                fake_percentage = (fake_percentage / total_percentage) * 100
+
+            # Create the bar chart
             categories = ['REAL', 'FAKE']
             percentages = [real_percentage, fake_percentage]
-            frame_counts = [total_real_frames, total_fake_frames]
             colors = [self.colors['real'], self.colors['fake']]
 
             bars = self.ax3.barh(categories, percentages, color=colors, alpha=0.8, height=0.6)
 
-            for i, (bar, percentage, count, category) in enumerate(zip(bars, percentages, frame_counts, categories)):
+            # Add percentage labels on bars
+            for i, (bar, percentage, count, category) in enumerate(
+                    zip(bars, percentages, [real_count, fake_count], categories)):
                 width = bar.get_width()
-                if percentage > 10:
+
+                # Position text based on bar width
+                if percentage > 15:  # If bar is wide enough, put text inside
                     x_pos = width / 2
                     ha = 'center'
                     color = 'white'
                     fontweight = 'bold'
-                    text = f'{category}: {percentage:.1f}%'
-                else:
-                    x_pos = width + 1
+                else:  # If bar is too narrow, put text outside
+                    x_pos = width + 2
                     ha = 'left'
                     color = self.colors['text']
                     fontweight = 'normal'
-                    text = f'{category}: {percentage:.1f}%'
+
+                # Display both percentage and count
+                text = f'{category}: {percentage:.1f}% ({count:,})'
 
                 self.ax3.text(x_pos, bar.get_y() + bar.get_height() / 2, text,
-                              ha=ha, va='center', color=color, fontsize=11, fontweight=fontweight)
+                              ha=ha, va='center', color=color, fontsize=10, fontweight=fontweight)
 
-            # Clean up the axes
-            self.ax3.set_xlim(0, 100)
-            self.ax3.set_xlabel('Percentage (%)', color=self.colors['text_dim'], fontsize=10)
+            # Set up the axes
+            self.ax3.set_xlim(0, 100)  # Always 0-100% scale
+            self.ax3.set_xlabel('Cumulative Percentage (%)', color=self.colors['text_dim'], fontsize=10)
 
-            # Remove all y-axis elements
+            # Remove y-axis labels (categories are shown in the text on bars)
             self.ax3.set_yticks([])
             self.ax3.set_yticklabels([])
             self.ax3.tick_params(left=False, right=False, labelleft=False, labelright=False)
 
-            # Only show x-axis grid
+            # Add grid for x-axis only
             self.ax3.grid(True, alpha=0.3, color=self.colors['text_dim'], axis='x')
             self.ax3.set_facecolor(self.colors['bg'])
+            self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-            # Add total frames info at bottom
-            self.ax3.text(50, -0.5, f'Total Video: {self.total_video_frames:,} frames',
-                          ha='center', va='center', color=self.colors['text_dim'], fontsize=10)
+            # Add summary information below the chart
+            self.ax3.text(50, -0.5,
+                          f'Total Analyzed: {total_analyzed_frames:,} frames | Real: {real_count:,} | Fake: {fake_count:,}',
+                          ha='center', va='center', color=self.colors['text_dim'], fontsize=9, fontweight='bold')
 
-        self.ax3.set_title('Total Video Classification', color=self.colors['text'],
+            # DEBUG: Print values to console to verify calculations
+            print(f"DEBUG - Bar Chart Update:")
+            print(f"  Total predictions: {total_analyzed_frames}")
+            print(f"  Real count: {real_count} ({real_percentage:.1f}%)")
+            print(f"  Fake count: {fake_count} ({fake_percentage:.1f}%)")
+            print(f"  Total percentage: {real_percentage + fake_percentage:.1f}%")
+
+        self.ax3.set_title('Cumulative Analysis Results (All Predictions)', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=15)
 
         plt.tight_layout(pad=1.5)
@@ -1369,7 +1390,7 @@ class DeepfakeDetectionGUI:
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
 
     def show_beautiful_results_dialog(self):
-        """Show a short, direct results dialog"""
+        """Show a short, direct results dialog with clear, visible buttons"""
         predictions = list(self.prediction_history)
         confidences = list(self.confidence_history)
 
@@ -1405,7 +1426,7 @@ class DeepfakeDetectionGUI:
         # Create simple dialog
         result_dialog = tk.Toplevel(self.root)
         result_dialog.title("🔍 Analysis Results")
-        result_dialog.geometry("500x400")
+        result_dialog.geometry("600x450")  # Made slightly larger
         result_dialog.configure(bg=self.colors['bg'])
         result_dialog.resizable(False, False)
 
@@ -1415,7 +1436,7 @@ class DeepfakeDetectionGUI:
 
         # Main container
         main_frame = tk.Frame(result_dialog, bg=self.colors['bg'])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=25)
 
         # Header
         header_frame = tk.Frame(main_frame, bg=self.colors['card'], relief=tk.FLAT, bd=0)
@@ -1436,7 +1457,7 @@ class DeepfakeDetectionGUI:
 
         # Results section
         results_frame = tk.Frame(main_frame, bg=self.colors['card_light'], relief=tk.FLAT, bd=0)
-        results_frame.pack(fill=tk.X, pady=(0, 20))
+        results_frame.pack(fill=tk.X, pady=(0, 25))
 
         results_inner = tk.Frame(results_frame, bg=self.colors['card_light'])
         results_inner.pack(pady=20)
@@ -1457,7 +1478,7 @@ class DeepfakeDetectionGUI:
     Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
 
     Average Confidence: {avg_confidence:.1f}%
-    Frames Processed: {self.total_video_frames:,}
+    Frames Analyzed: {analyzed_frames:,}
         """
 
         results_label = tk.Label(
@@ -1470,30 +1491,80 @@ class DeepfakeDetectionGUI:
         )
         results_label.pack(pady=10)
 
-        # Buttons
+        # FIXED: Enhanced buttons section with better styling and spacing
         button_frame = tk.Frame(main_frame, bg=self.colors['bg'])
-        button_frame.pack(fill=tk.X, pady=(20, 0))
+        button_frame.pack(fill=tk.X, pady=(25, 0))
 
-        # Export button
-        export_btn = self.create_modern_button(
-            button_frame, "📄 Export",
-            lambda: self.export_simple_report(real_percentage, fake_percentage, total_real_frames, total_fake_frames,
-                                              avg_confidence),
-            self.colors['accent']
-        )
-        export_btn.pack(side=tk.LEFT)
+        # Create a sub-frame for button alignment
+        button_container = tk.Frame(button_frame, bg=self.colors['bg'])
+        button_container.pack(fill=tk.X)
 
-        # Close button
-        close_btn = self.create_modern_button(
-            button_frame, "Close", result_dialog.destroy, self.colors['success']
+        # Export/Save button - LEFT side with enhanced styling
+        export_btn = tk.Button(
+            button_container,
+            text="💾 SAVE REPORT",
+            command=lambda: self.export_simple_report(real_percentage, fake_percentage, total_real_frames,
+                                                      total_fake_frames, avg_confidence),
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 14, 'bold'),
+            relief=tk.FLAT,
+            padx=30,
+            pady=12,
+            cursor='hand2',
+            activebackground=self.lighten_color(self.colors['accent']),
+            activeforeground='white',
+            bd=0,
+            width=15
         )
-        close_btn.pack(side=tk.RIGHT)
+        export_btn.pack(side=tk.LEFT, padx=(0, 15))
+
+        # Add hover effects for export button
+        export_btn.bind("<Enter>", lambda e: export_btn.config(bg=self.lighten_color(self.colors['accent'])))
+        export_btn.bind("<Leave>", lambda e: export_btn.config(bg=self.colors['accent']))
+
+        # Close button - RIGHT side with enhanced styling
+        close_btn = tk.Button(
+            button_container,
+            text="✖️ CLOSE",
+            command=result_dialog.destroy,
+            bg=self.colors['success'],
+            fg='white',
+            font=('Segoe UI', 14, 'bold'),
+            relief=tk.FLAT,
+            padx=30,
+            pady=12,
+            cursor='hand2',
+            activebackground=self.lighten_color(self.colors['success']),
+            activeforeground='white',
+            bd=0,
+            width=15
+        )
+        close_btn.pack(side=tk.RIGHT, padx=(15, 0))
+
+        # Add hover effects for close button
+        close_btn.bind("<Enter>", lambda e: close_btn.config(bg=self.lighten_color(self.colors['success'])))
+        close_btn.bind("<Leave>", lambda e: close_btn.config(bg=self.colors['success']))
+
+        # Add keyboard shortcuts
+        result_dialog.bind('<Return>', lambda e: result_dialog.destroy())  # Enter to close
+        result_dialog.bind('<Escape>', lambda e: result_dialog.destroy())  # Escape to close
+        result_dialog.bind('<Control-s>',
+                           lambda e: self.export_simple_report(real_percentage, fake_percentage, total_real_frames,
+                                                               total_fake_frames, avg_confidence))  # Ctrl+S to save
 
         # Center the dialog on screen
         result_dialog.update_idletasks()
         x = (result_dialog.winfo_screenwidth() - result_dialog.winfo_width()) // 2
         y = (result_dialog.winfo_screenheight() - result_dialog.winfo_height()) // 2
         result_dialog.geometry(f"+{x}+{y}")
+
+        # Focus on the dialog
+        result_dialog.focus_set()
+
+        # Add a subtle separator line above buttons for better visual separation
+        separator = tk.Frame(button_frame, bg=self.colors['border'], height=1)
+        separator.pack(fill=tk.X, pady=(0, 20))
 
     def export_analysis_report(self, predictions, confidences, video_name, video_duration):
         """Export detailed analysis report to text file"""
