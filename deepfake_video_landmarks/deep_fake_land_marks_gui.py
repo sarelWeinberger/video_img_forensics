@@ -28,11 +28,12 @@ from tensorflow.keras.models import load_model
 class DeepfakeDetectionGUI:
     """
     Enhanced Professional GUI for deepfake detection analysis with dual video display
+    Compatible with Multi-Head LSTM Model
     """
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Enhanced Deepfake Detection Analyzer v2.1")
+        self.root.title("Multi-Head Deepfake Analyzer v3.0")
         self.root.geometry("1800x1100")
         self.root.configure(bg='#1a1a1a')
 
@@ -50,17 +51,18 @@ class DeepfakeDetectionGUI:
         self.analysis_thread = None
         self.display_thread = None
         self.video_loading_thread = None
-        self.model_path = "enhanced_deepfake_lstm_model_fallback.h5.h5"
+        self.model_path = "multi_head_lstm.h5"
 
-        # Analysis parameters
+        # Analysis parameters (updated for multi-head model)
         self.chunk_size = 64
         self.num_landmarks = 68
         self.features_per_landmark = 5
         self.feature_dim = self.num_landmarks * self.features_per_landmark
 
-        # Data storage
-        self.prediction_history = deque(maxlen=200)
-        self.confidence_history = deque(maxlen=200)
+        # Data storage - REMOVED maxlen to store ALL predictions, not just last 200!
+        self.prediction_history = deque()  # No maxlen = stores ALL predictions
+        self.confidence_history = deque()  # No maxlen = stores ALL confidences
+        self.frame_timestamps = deque()  # Store timestamps for each prediction
         self.frame_features = []
         self.current_frame = None
         self.current_frame_processed = None
@@ -69,7 +71,7 @@ class DeepfakeDetectionGUI:
         self.video_fps = 30
 
         # Threading for smooth display
-        self.frame_queue = Queue(maxsize=10)  # Increased buffer for smoother playback
+        self.frame_queue = Queue(maxsize=10)
         self.display_queue = Queue(maxsize=10)
         self.analysis_queue = Queue(maxsize=15)
 
@@ -141,7 +143,7 @@ class DeepfakeDetectionGUI:
 
         title_label = tk.Label(
             title_frame,
-            text="🎯 ENHANCED DEEPFAKE DETECTION ANALYZER",
+            text="🎯 MULTI-STREAM DEEPFAKE ANALYZER",
             font=('Segoe UI', 26, 'bold'),
             fg=self.colors['accent'],
             bg=self.colors['bg']
@@ -150,7 +152,7 @@ class DeepfakeDetectionGUI:
 
         subtitle_label = tk.Label(
             title_frame,
-            text="v2.1 • Dual Video Display • Real-time Analysis • Enhanced LSTM Model",
+            text="v3.0 • Multi-Head Architecture • Real-time Analysis • Enhanced LSTM Model",
             font=('Segoe UI', 11),
             fg=self.colors['text_dim'],
             bg=self.colors['bg']
@@ -254,7 +256,7 @@ class DeepfakeDetectionGUI:
 
         self.model_status = tk.Label(
             model_controls,
-            text="🔄 Loading Enhanced Model...",
+            text="🔄 Loading Multi-Head Model...",
             fg=self.colors['uncertain'],
             bg=self.colors['card'],
             font=('Segoe UI', 10)
@@ -325,7 +327,7 @@ class DeepfakeDetectionGUI:
 
         tk.Label(
             title_frame,
-            text="📹 DUAL VIDEO ANALYSIS",
+            text="📹 MULTI-HEAD VIDEO ANALYSIS",
             font=('Segoe UI', 16, 'bold'),
             fg=self.colors['text'],
             bg=self.colors['card']
@@ -352,7 +354,7 @@ class DeepfakeDetectionGUI:
 
         self.original_video_label = tk.Label(
             self.original_video_frame,
-            text="🎬 Original Video\nNo Processing Applied\n\nLoad a video to begin analysis",
+            text="🎬 Original Video\nNo Processing Applied\n\nLoad a video to begin multi-head analysis",
             font=('Segoe UI', 12),
             fg='white',
             bg='black',
@@ -377,7 +379,7 @@ class DeepfakeDetectionGUI:
 
         self.processed_video_label = tk.Label(
             self.processed_video_frame,
-            text="🔍 Analysis View\nLandmarks & Face Detection\n\nProcessed frames will appear here",
+            text="🎯 Analysis View\nMulti-Head Processing\n\nProcessed frames will appear here",
             font=('Segoe UI', 12),
             fg='white',
             bg='black',
@@ -395,14 +397,13 @@ class DeepfakeDetectionGUI:
 
         tk.Label(
             progress_section,
-            text="Analysis Progress:",
+            text="Multi-Head Analysis Progress:",
             font=('Segoe UI', 10, 'bold'),
             fg=self.colors['text_dim'],
             bg=self.colors['card']
         ).pack(side=tk.LEFT)
 
         self.progress_var = tk.DoubleVar()
-        # Now this will work because setup_styles() was called first
         self.progress_bar = ttk.Progressbar(
             progress_section,
             variable=self.progress_var,
@@ -430,7 +431,7 @@ class DeepfakeDetectionGUI:
 
         self.prediction_label = tk.Label(
             pred_inner,
-            text="PREDICTION: AWAITING ANALYSIS",
+            text="PREDICTION: AWAITING MULTI-HEAD ANALYSIS",
             font=('Segoe UI', 18, 'bold'),
             fg=self.colors['text'],
             bg=self.colors['card_light']
@@ -449,7 +450,7 @@ class DeepfakeDetectionGUI:
         # Confidence explanation
         self.confidence_explanation = tk.Label(
             pred_inner,
-            text="Confidence Level: How certain the AI model is about its prediction\n• 90-100%: Very High Certainty • 70-89%: High Certainty\n• 50-69%: Moderate Certainty • Below 50%: Low Certainty",
+            text="Multi-Head Model Confidence: How certain the AI model is about its prediction\n• 90-100%: Very High Certainty • 70-89%: High Certainty\n• 50-69%: Moderate Certainty • Below 50%: Low Certainty",
             font=('Segoe UI', 9),
             fg=self.colors['text_dim'],
             bg=self.colors['card_light'],
@@ -498,10 +499,10 @@ class DeepfakeDetectionGUI:
 
         self.stats_text = tk.Text(
             stats_frame,
-            height=6,
+            height=8,
             bg=self.colors['bg'],
             fg=self.colors['text'],
-            font=('Consolas', 10),
+            font=('Consolas', 9),
             relief=tk.FLAT,
             bd=0,
             wrap=tk.WORD,
@@ -509,11 +510,14 @@ class DeepfakeDetectionGUI:
         )
         self.stats_text.pack(fill=tk.X, padx=15, pady=(0, 15))
 
+        # Add scrollbar for stats text
+        stats_scrollbar = tk.Scrollbar(stats_frame, orient=tk.VERTICAL, command=self.stats_text.yview)
+        self.stats_text.config(yscrollcommand=stats_scrollbar.set)
+        stats_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 15))
+
     def setup_charts(self):
         """Setup enhanced analysis charts with better spacing"""
         self.fig.clear()
-
-        # Set the figure background
         self.fig.patch.set_facecolor(self.colors['card'])
 
         # Create subplots with equal heights but MORE vertical space between them
@@ -521,7 +525,7 @@ class DeepfakeDetectionGUI:
 
         # Top plot - taller for confidence over time
         self.ax1 = self.fig.add_subplot(gs[0])
-        self.ax1.set_title('Confidence Score Over Time', color=self.colors['text'],
+        self.ax1.set_title('Multi-Head Confidence Score Over Time', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=20)
         self.ax1.set_facecolor(self.colors['bg'])
         self.ax1.tick_params(colors=self.colors['text_dim'], labelsize=9)
@@ -529,14 +533,14 @@ class DeepfakeDetectionGUI:
 
         # Middle plot - timeline without legend
         self.ax2 = self.fig.add_subplot(gs[1])
-        self.ax2.set_title('Temporal Authenticity Analysis', color=self.colors['text'],
+        self.ax2.set_title('Multi-Head Temporal Authenticity Analysis', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=20)
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=9)
 
         # Bottom plot - horizontal bar chart
         self.ax3 = self.fig.add_subplot(gs[2])
-        self.ax3.set_title('Frame Analysis Percentage', color=self.colors['text'],
+        self.ax3.set_title('Multi-Head Frame Analysis Percentage', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=20)
         self.ax3.set_facecolor(self.colors['bg'])
         self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=9)
@@ -552,7 +556,7 @@ class DeepfakeDetectionGUI:
 
         self.status_label = tk.Label(
             status_inner,
-            text="🔄 Initializing Enhanced Deepfake Analyzer...",
+            text="🔄 Initializing Multi-Head Deepfake Analyzer...",
             fg=self.colors['text'],
             bg=self.colors['card_light'],
             font=('Segoe UI', 10),
@@ -571,16 +575,13 @@ class DeepfakeDetectionGUI:
         self.processing_label.pack(side=tk.RIGHT, padx=15)
 
     def safe_load_model(self, model_path):
-        """Safely load a TensorFlow model with extensive error handling"""
-        # Clear any existing TensorFlow session and free memory
+        """Safely load the Multi-Head LSTM model"""
         tf.keras.backend.clear_session()
         gc.collect()
 
         try:
-            # First try the simplest approach
-            self.update_status(f"🔄 Loading model: {os.path.basename(model_path)}...")
+            self.update_status(f"🔄 Loading Multi-Head model: {os.path.basename(model_path)}...")
 
-            # Use a separate function to isolate model loading
             def load_model_isolated():
                 with tf.keras.utils.custom_object_scope({}):
                     model = load_model(model_path, compile=False)
@@ -591,31 +592,98 @@ class DeepfakeDetectionGUI:
                 )
                 return model
 
-            # Load the model
             self.model = load_model_isolated()
 
-            # Test the model with a simple prediction to ensure it works
-            test_data = np.zeros((1, 64, 340)).astype(np.float32)
-            _ = self.model.predict(test_data, verbose=0)
+            # Test the model with 9 dummy inputs (for multi-head model)
+            test_inputs = self.create_dummy_inputs()
+            _ = self.model.predict(test_inputs, verbose=0)
 
-            self.update_status("✅ Model loaded and verified successfully")
+            self.update_status("✅ Multi-Head model loaded and verified successfully")
             return True
 
         except Exception as e:
             self.update_status(f"❌ Error loading model: {str(e)}")
             return False
 
+    def create_dummy_inputs(self):
+        """Create dummy inputs for the multi-head model"""
+        # The multi-head model expects 9 inputs:
+        # 4 facial regions (shape: batch, 64, 85 each)
+        # 3 temporal chunks (shapes: batch, 22, 340), (batch, 22, 340), (batch, 20, 340)
+        # 1 motion input (shape: batch, 64, 340)
+        # 1 overall input (shape: batch, 64, 340)
+
+        dummy_inputs = []
+
+        # 4 facial region inputs (each 64 frames, 85 features)
+        for i in range(4):
+            dummy_inputs.append(np.zeros((1, 64, 85)).astype(np.float32))
+
+        # 3 temporal inputs
+        dummy_inputs.append(np.zeros((1, 22, 340)).astype(np.float32))  # early frames
+        dummy_inputs.append(np.zeros((1, 22, 340)).astype(np.float32))  # middle frames
+        dummy_inputs.append(np.zeros((1, 20, 340)).astype(np.float32))  # late frames
+
+        # Motion input
+        dummy_inputs.append(np.zeros((1, 64, 340)).astype(np.float32))
+
+        # Overall input
+        dummy_inputs.append(np.zeros((1, 64, 340)).astype(np.float32))
+
+        return dummy_inputs
+
+    def multi_head_feature_engineering(self, feature_buffer):
+        """
+        Apply multi-head feature engineering for the model
+        """
+        if len(feature_buffer) < self.chunk_size:
+            return None
+
+        # Convert to numpy array
+        X = np.array(feature_buffer[-self.chunk_size:])
+        X = X.reshape(1, self.chunk_size, -1)  # Add batch dimension
+
+        n_features = X.shape[2]  # 340 features
+        chunk_size = n_features // 4
+
+        # Split features into 4 semantic groups
+        face_region_1 = X[:, :, :chunk_size]
+        face_region_2 = X[:, :, chunk_size:2 * chunk_size]
+        face_region_3 = X[:, :, 2 * chunk_size:3 * chunk_size]
+        face_region_4 = X[:, :, 3 * chunk_size:]
+
+        # Temporal perspectives
+        early_frames = X[:, :22, :]
+        middle_frames = X[:, 22:44, :]
+        late_frames = X[:, 44:, :]
+
+        # Frame differences (motion)
+        frame_diffs = np.diff(X, axis=1)
+        frame_diffs = np.concatenate([frame_diffs, frame_diffs[:, -1:, :]], axis=1)
+
+        # Return the 9 inputs in the correct order
+        return [
+            face_region_1,  # region 1
+            face_region_2,  # region 2
+            face_region_3,  # region 3
+            face_region_4,  # region 4
+            early_frames,  # temporal 1
+            middle_frames,  # temporal 2
+            late_frames,  # temporal 3
+            frame_diffs,  # motion
+            X  # overall
+        ]
+
     def auto_load_model(self):
-        """Automatically load the enhanced deepfake model if it exists"""
+        """Automatically load the multi-head deepfake model if it exists"""
         if os.path.exists(self.model_path):
             try:
-                self.update_status("🔄 Auto-loading Enhanced Deepfake Model...")
+                self.update_status("🚀 Auto-loading Multi-Head Deepfake Model...")
 
-                # Use our safe model loading function
                 model_loaded = self.safe_load_model(self.model_path)
 
                 if not model_loaded:
-                    raise Exception("Failed to load model safely")
+                    raise Exception("Failed to load Multi-Head model safely")
 
                 # Initialize face detection
                 self.face_detector = dlib.get_frontal_face_detector()
@@ -625,19 +693,20 @@ class DeepfakeDetectionGUI:
                     self.landmark_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
                     self.model_status.config(
-                        text="✅ Enhanced Model Loaded",
+                        text="✅ Multi-Head Model Loaded",
                         fg=self.colors['real']
                     )
-                    self.update_status("🟢 Enhanced Deepfake Model loaded successfully - Ready for analysis!")
+                    self.update_status(
+                        "🚀 Multi-Head Deepfake Model loaded successfully - Ready for analysis!")
                 else:
                     self.model_status.config(
-                        text="⚠️ Model Loaded - Missing Landmarks",
+                        text="⚠️ Multi-Head Model Loaded - Missing Landmarks",
                         fg=self.colors['uncertain']
                     )
-                    self.update_status("⚠️ Model loaded but landmark predictor missing")
+                    self.update_status("⚠️ Multi-Head model loaded but landmark predictor missing")
                     messagebox.showwarning(
                         "Landmark Predictor Missing",
-                        "Enhanced model loaded successfully!\n\n"
+                        "Multi-Head model loaded successfully!\n\n"
                         "However, 'shape_predictor_68_face_landmarks.dat' is missing.\n"
                         "Please download it from: http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2\n\n"
                         "Extract and place it in the same directory as this script."
@@ -645,44 +714,43 @@ class DeepfakeDetectionGUI:
 
             except Exception as e:
                 self.model_status.config(
-                    text="❌ Failed to Load Enhanced Model",
+                    text="❌ Failed to Load Multi-Head Model",
                     fg=self.colors['fake']
                 )
-                self.update_status(f"❌ Failed to auto-load enhanced model: {str(e)}")
+                self.update_status(f"❌ Failed to auto-load Multi-Head model: {str(e)}")
                 messagebox.showerror(
-                    "Model Loading Error",
-                    f"Failed to load enhanced_deepfake_lstm_model.h5:\n\n{str(e)}\n\n"
+                    "Multi-Head Model Loading Error",
+                    f"Failed to load multi_head_lstm.h5:\n\n{str(e)}\n\n"
                     "You can try loading a different model using 'Load Different Model' button."
                 )
         else:
             self.model_status.config(
-                text="❌ Enhanced Model Not Found",
+                text="❌ Multi-Head Model Not Found",
                 fg=self.colors['fake']
             )
-            self.update_status("❌ enhanced_deepfake_lstm_model.h5 not found in current directory")
+            self.update_status("❌ multi_head_lstm.h5 not found in current directory")
             messagebox.showinfo(
-                "Enhanced Model Not Found",
-                "Could not find 'enhanced_deepfake_lstm_model.h5' in the current directory.\n\n"
-                "Please ensure the model file is in the same folder as this script,\n"
+                "Multi-Head Model Not Found",
+                "Could not find 'multi_head_lstm.h5' in the current directory.\n\n"
+                "Please ensure the Multi-Head model file is in the same folder as this script,\n"
                 "or use 'Load Different Model' to browse for your model file."
             )
 
     def load_model(self):
         """Load a different deepfake detection model"""
         file_path = filedialog.askopenfilename(
-            title="Select Alternative Deepfake Detection Model",
+            title="Select Multi-Head Deepfake Detection Model",
             filetypes=[("Keras Model", "*.h5"), ("Keras Model", "*.keras"), ("All files", "*.*")]
         )
 
         if file_path:
             try:
-                self.update_status("Loading alternative model...")
+                self.update_status("Loading Multi-Head alternative model...")
 
-                # Use our safe model loading function
                 model_loaded = self.safe_load_model(file_path)
 
                 if not model_loaded:
-                    raise Exception("Failed to load model safely")
+                    raise Exception("Failed to load Multi-Head model safely")
 
                 # Initialize face detection
                 self.face_detector = dlib.get_frontal_face_detector()
@@ -695,20 +763,20 @@ class DeepfakeDetectionGUI:
                     )
                     return
 
-                self.model_status.config(text="✅ Alternative Model Loaded", fg=self.colors['real'])
-                self.update_status(f"🟢 Alternative model loaded: {os.path.basename(file_path)}")
+                self.model_status.config(text="✅ Multi-Head Alternative Model Loaded", fg=self.colors['real'])
+                self.update_status(f"🚀 Multi-Head alternative model loaded: {os.path.basename(file_path)}")
 
                 if self.video_loaded_successfully:
                     self.analyze_btn.config(state=tk.NORMAL)
 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to load model: {str(e)}")
-                self.update_status("❌ Failed to load alternative model")
+                messagebox.showerror("Error", f"Failed to load Multi-Head model: {str(e)}")
+                self.update_status("❌ Failed to load Multi-Head alternative model")
 
     def load_video(self):
         """Load video file for analysis with smooth loading progress"""
         file_path = filedialog.askopenfilename(
-            title="Select Video for Analysis",
+            title="Select Video for Multi-Head Analysis",
             filetypes=[
                 ("Video files", "*.mp4 *.avi *.mov *.mkv *.flv *.wmv"),
                 ("All files", "*.*")
@@ -727,7 +795,7 @@ class DeepfakeDetectionGUI:
             self.video_loading_label.pack(side=tk.LEFT)
 
             self.current_video = file_path
-            self.update_status(f"📹 Loading video: {os.path.basename(file_path)}...")
+            self.update_status(f"🚀 Loading video for Multi-Head analysis: {os.path.basename(file_path)}...")
 
             # Start video loading in separate thread
             self.video_loading_thread = threading.Thread(
@@ -802,6 +870,7 @@ class DeepfakeDetectionGUI:
         # Reset analysis data
         self.prediction_history.clear()
         self.confidence_history.clear()
+        self.frame_timestamps.clear()
         self.frame_features.clear()
         self.frame_index = 0
 
@@ -813,21 +882,21 @@ class DeepfakeDetectionGUI:
                 break
 
         self.update_status(
-            f"✅ Video loaded successfully: {os.path.basename(file_path)} ({self.total_video_frames:,} frames, {self.video_fps:.1f} fps)")
+            f"✅ Video loaded for Multi-Head analysis: {os.path.basename(file_path)} ({self.total_video_frames:,} frames, {self.video_fps:.1f} fps)")
 
         # Show video info in status
         duration_seconds = self.total_video_frames / self.video_fps if self.video_fps > 0 else 0
         duration_minutes = duration_seconds / 60
 
         messagebox.showinfo(
-            "Video Loaded Successfully",
-            f"✅ Video loaded and ready for analysis!\n\n"
+            "Video Loaded for Multi-Head Analysis",
+            f"✅ Video loaded and ready for Multi-Head analysis!\n\n"
             f"📊 Video Information:\n"
             f"• Total Frames: {self.total_video_frames:,}\n"
             f"• Frame Rate: {self.video_fps:.1f} fps\n"
             f"• Duration: {duration_minutes:.1f} minutes\n"
             f"• File: {os.path.basename(file_path)}\n\n"
-            f"🎯 You can now click 'START ANALYSIS' to begin!"
+            f"🚀 You can now click 'START MULTI-HEAD ANALYSIS' to begin!"
         )
 
     def video_loading_error(self, error_message):
@@ -855,12 +924,12 @@ class DeepfakeDetectionGUI:
     def start_analysis(self):
         """Start the video analysis with improved threading"""
         if not self.model or not self.current_video or not self.video_loaded_successfully:
-            messagebox.showwarning("Missing Components", "Please load both model and video first.")
+            messagebox.showwarning("Missing Components", "Please load both Multi-Head model and video first.")
             return
 
         self.is_analyzing = True
         self.analyze_btn.config(text="⏹ STOP ANALYSIS", bg=self.colors['fake'])
-        self.update_status("🔍 Analysis in progress...")
+        self.update_status("🚀 Multi-Head analysis in progress...")
 
         # Start analysis thread
         self.analysis_thread = threading.Thread(target=self.analyze_video, daemon=True)
@@ -873,14 +942,14 @@ class DeepfakeDetectionGUI:
     def stop_analysis(self):
         """Stop the video analysis"""
         self.is_analyzing = False
-        self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
-        self.update_status("⏸ Analysis stopped")
+        self.analyze_btn.config(text="🚀 START MULTI-HEAD ANALYSIS", bg=self.colors['real'])
+        self.update_status("⏸ Multi-Head analysis stopped")
 
         # Clean up resources
         gc.collect()
 
     def analyze_video(self):
-        """Main video analysis loop with improved performance"""
+        """Main video analysis loop with Multi-Head model"""
         cap = cv2.VideoCapture(self.current_video)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -905,47 +974,32 @@ class DeepfakeDetectionGUI:
                 if features is not None:
                     features_buffer.append(features)
 
-                # Make prediction when we have enough frames
+                # Make prediction when we have enough frames using Multi-Head model
                 if len(features_buffer) >= self.chunk_size:
-                    # Make prediction with enhanced safety
                     try:
-                        # Create a copy of the data to avoid memory issues
-                        chunk = np.array(features_buffer[-self.chunk_size:], copy=True)
+                        # Apply multi-head feature engineering
+                        multi_head_inputs = self.multi_head_feature_engineering(features_buffer)
 
-                        # Reshape with explicit dimensions
-                        input_data = chunk.reshape(1, self.chunk_size, -1).astype(np.float32)
+                        if multi_head_inputs is not None:
+                            # Make prediction with the multi-head model
+                            prediction = self.model.predict(multi_head_inputs, verbose=0)[0][0]
 
-                        # Use a timeout mechanism for prediction
-                        def make_prediction():
-                            return self.model.predict(input_data, verbose=0)[0][0]
+                            # FIXED: Calculate actual timestamp for this prediction
+                            current_timestamp = frame_count / fps if fps > 0 else frame_count * (1 / 30)
 
-                        # Run prediction in a separate thread with timeout
-                        prediction_thread = threading.Thread(target=lambda: make_prediction())
-                        prediction_thread.daemon = True
-                        prediction_thread.start()
-                        prediction_thread.join(timeout=2.0)  # 2 second timeout
+                            self.prediction_history.append(prediction)
+                            self.confidence_history.append(abs(prediction - 0.5) * 2)
+                            self.frame_timestamps.append(current_timestamp)  # Store actual timestamp
 
-                        if prediction_thread.is_alive():
-                            # If prediction takes too long, skip this frame
-                            self.update_status("⚠️ Prediction timeout, skipping frame")
-                            continue
-
-                        # Get the prediction result
-                        prediction = make_prediction()
+                            # Update displays (throttled)
+                            if frame_count % 3 == 0:  # Update every 3rd frame for smoothness
+                                self.root.after(0, self.update_prediction_display, prediction)
+                                self.root.after(0, self.update_charts)
 
                     except Exception as pred_error:
-                        self.update_status(f"⚠️ Prediction error: {str(pred_error)}")
-                        # Force garbage collection to free memory
+                        self.update_status(f"⚠️ Multi-Head prediction error: {str(pred_error)}")
                         gc.collect()
                         continue
-
-                    self.prediction_history.append(prediction)
-                    self.confidence_history.append(abs(prediction - 0.5) * 2)
-
-                    # Update displays (throttled)
-                    if frame_count % 3 == 0:  # Update every 3rd frame for smoothness
-                        self.root.after(0, self.update_prediction_display, prediction)
-                        self.root.after(0, self.update_charts)
 
                 # Update progress
                 frame_count += 1
@@ -957,7 +1011,8 @@ class DeepfakeDetectionGUI:
                 time.sleep(1 / min(90, fps * 2.5))  # Increased FPS for smoother analysis
 
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Analysis Error", f"Error during analysis: {str(e)}"))
+            self.root.after(0, lambda: messagebox.showerror("Multi-Head Analysis Error",
+                                                            f"Error during Multi-Head analysis: {str(e)}"))
         finally:
             cap.release()
             if self.is_analyzing:
@@ -987,7 +1042,7 @@ class DeepfakeDetectionGUI:
                 continue
 
     def add_analysis_overlay(self, frame):
-        """Add analysis overlay to frame (landmarks, face detection)"""
+        """Add Multi-Head analysis overlay to frame"""
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = self.face_detector(gray)
@@ -995,24 +1050,24 @@ class DeepfakeDetectionGUI:
             if len(faces) > 0:
                 largest_face = max(faces, key=lambda rect: rect.width() * rect.height())
 
-                # Draw face rectangle with modern styling
+                # Draw face rectangle with Multi-Head styling
                 x, y, w, h = largest_face.left(), largest_face.top(), largest_face.width(), largest_face.height()
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 136), 3)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 3)  # Magenta for Multi-Head
 
                 # Add face detection label
-                cv2.putText(frame, 'FACE DETECTED', (x, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 136), 2)
+                cv2.putText(frame, 'MULTI-HEAD ANALYSIS', (x, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
 
                 # Draw landmarks if predictor is available
                 if self.landmark_predictor:
                     landmarks = self.landmark_predictor(gray, largest_face)
 
-                    # Draw landmarks with different colors for different facial parts
+                    # Draw landmarks with Multi-Head color coding
                     for i in range(self.num_landmarks):
                         x_pt = landmarks.part(i).x
                         y_pt = landmarks.part(i).y
 
-                        # Color coding for different facial features
+                        # Multi-Head color coding for different facial features
                         if i < 17:  # Jaw line
                             color = (255, 255, 0)  # Yellow
                         elif i < 27:  # Eyebrows
@@ -1026,15 +1081,19 @@ class DeepfakeDetectionGUI:
 
                         cv2.circle(frame, (x_pt, y_pt), 2, color, -1)
 
-            # Add analysis info overlay
-            cv2.rectangle(frame, (10, 10), (300, 80), (0, 0, 0), -1)
-            cv2.rectangle(frame, (10, 10), (300, 80), (0, 255, 136), 2)
-            cv2.putText(frame, 'DEEPFAKE ANALYSIS', (20, 35),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 136), 2)
-            cv2.putText(frame, f'Faces: {len(faces)}', (20, 55),
+            # Add Multi-Head analysis info overlay
+            cv2.rectangle(frame, (10, 10), (350, 100), (0, 0, 0), -1)
+            cv2.rectangle(frame, (10, 10), (350, 100), (255, 0, 255), 2)
+            cv2.putText(frame, 'MULTI-HEAD STREAMS', (20, 35),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+            cv2.putText(frame, f'9 Parallel Heads Active', (20, 55),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(frame, f'Landmarks: {self.num_landmarks if self.landmark_predictor else 0}', (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(frame,
+                        f'Faces: {len(faces)} | Landmarks: {self.num_landmarks if self.landmark_predictor else 0}',
+                        (20, 75),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            cv2.putText(frame, f'Multi-Head LSTM Processing', (20, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
         except Exception as e:
             pass  # Return frame as-is if processing fails
@@ -1045,7 +1104,7 @@ class DeepfakeDetectionGUI:
         """Update both video displays with larger size"""
         try:
             # Larger display size for better visibility
-            display_size = (480, 360)  # Increased from (320, 240)
+            display_size = (480, 360)
 
             # Original frame
             original_resized = cv2.resize(original_frame, display_size)
@@ -1128,11 +1187,11 @@ class DeepfakeDetectionGUI:
 
         confidence = abs(prediction - 0.5) * 2 * 100
 
-        self.prediction_label.config(text=f"{icon} PREDICTION: {pred_text}", fg=color)
-        self.confidence_label.config(text=f"Confidence: {confidence:.1f}%")
+        self.prediction_label.config(text=f"{icon} MULTI-HEAD PREDICTION: {pred_text}", fg=color)
+        self.confidence_label.config(text=f"Multi-Head Confidence: {confidence:.1f}%")
 
     def update_charts(self):
-        """Update analysis charts with FIXED bar chart calculations"""
+        """Update analysis charts with Multi-Head data"""
         if not self.prediction_history:
             return
 
@@ -1147,8 +1206,8 @@ class DeepfakeDetectionGUI:
             self.ax1.plot(confidence_data, color=self.colors['accent'], linewidth=2.5, alpha=0.8)
             self.ax1.fill_between(range(len(confidence_data)), confidence_data, alpha=0.3, color=self.colors['accent'])
 
-        self.ax1.set_title('Confidence Score Over Time', color=self.colors['text'], fontsize=11, fontweight='bold',
-                           pad=10)
+        self.ax1.set_title('Multi-Head Confidence Over Time', color=self.colors['text'], fontsize=11,
+                           fontweight='bold', pad=10)
         self.ax1.set_facecolor(self.colors['bg'])
         self.ax1.tick_params(colors=self.colors['text_dim'], labelsize=8)
         self.ax1.set_ylim(0, 1)
@@ -1159,7 +1218,6 @@ class DeepfakeDetectionGUI:
         if len(predictions) > 5:
             timeline_length = min(len(predictions), 100)
             recent_predictions = predictions[-timeline_length:]
-            recent_confidences = list(self.confidence_history)[-timeline_length:]
 
             x_values = range(len(recent_predictions))
             self.ax2.plot(x_values, recent_predictions, color=self.colors['accent'], linewidth=3, alpha=0.8)
@@ -1179,25 +1237,26 @@ class DeepfakeDetectionGUI:
             self.ax2.set_xlim(0, len(recent_predictions))
             self.ax2.grid(True, alpha=0.3, color=self.colors['text_dim'])
 
-        self.ax2.set_title('Analysis Timeline', color=self.colors['text'], fontsize=12, fontweight='bold', pad=15)
+        self.ax2.set_title('Multi-Head Analysis Timeline', color=self.colors['text'], fontsize=12, fontweight='bold',
+                           pad=15)
         self.ax2.set_facecolor(self.colors['bg'])
         self.ax2.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-        # COMPLETELY FIXED Bar chart - Cumulative percentages over ALL predictions so far
+        # Bar chart - Cumulative percentages over ALL predictions made so far (NOT just last 200!)
         if self.prediction_history:
-            # Get ALL predictions made so far (this is the key fix)
-            all_predictions = list(self.prediction_history)
+            # Get ALL predictions made since analysis started
+            all_predictions = list(self.prediction_history)  # This gets ALL predictions, not just last 200!
             total_analyzed_frames = len(all_predictions)
 
-            # Count REAL and FAKE from all predictions made so far
+            # Count REAL and FAKE from ALL predictions made so far
             real_count = sum(1 for p in all_predictions if p > 0.5)
             fake_count = total_analyzed_frames - real_count
 
-            # Calculate cumulative percentages (these should ALWAYS add up to 100%)
+            # Calculate cumulative percentages from ALL predictions
             real_percentage = (real_count / total_analyzed_frames) * 100 if total_analyzed_frames > 0 else 0
             fake_percentage = (fake_count / total_analyzed_frames) * 100 if total_analyzed_frames > 0 else 0
 
-            # SAFETY CHECK: Ensure percentages add up to 100% (fix any floating point errors)
+            # SAFETY CHECK: Ensure percentages add up to 100%
             total_percentage = real_percentage + fake_percentage
             if total_percentage > 0:
                 real_percentage = (real_percentage / total_percentage) * 100
@@ -1210,34 +1269,34 @@ class DeepfakeDetectionGUI:
 
             bars = self.ax3.barh(categories, percentages, color=colors, alpha=0.8, height=0.6)
 
-            # Add percentage labels on bars
+            # Add percentage labels on bars with CLEAR indication this is ALL frames
             for i, (bar, percentage, count, category) in enumerate(
                     zip(bars, percentages, [real_count, fake_count], categories)):
                 width = bar.get_width()
 
                 # Position text based on bar width
-                if percentage > 15:  # If bar is wide enough, put text inside
+                if percentage > 15:
                     x_pos = width / 2
                     ha = 'center'
                     color = 'white'
                     fontweight = 'bold'
-                else:  # If bar is too narrow, put text outside
+                else:
                     x_pos = width + 2
                     ha = 'left'
                     color = self.colors['text']
                     fontweight = 'normal'
 
-                # Display both percentage and count
-                text = f'{category}: {percentage:.1f}% ({count:,})'
+                # Display both percentage and count - CLEARLY showing ALL frames
+                text = f'{category}: {percentage:.1f}% ({count:,} frames)'
 
                 self.ax3.text(x_pos, bar.get_y() + bar.get_height() / 2, text,
                               ha=ha, va='center', color=color, fontsize=10, fontweight=fontweight)
 
             # Set up the axes
-            self.ax3.set_xlim(0, 100)  # Always 0-100% scale
-            self.ax3.set_xlabel('Cumulative Percentage (%)', color=self.colors['text_dim'], fontsize=10)
+            self.ax3.set_xlim(0, 100)
+            self.ax3.set_xlabel('Percentage of ALL Analyzed Frames (%)', color=self.colors['text_dim'], fontsize=10)
 
-            # Remove y-axis labels (categories are shown in the text on bars)
+            # Remove y-axis labels
             self.ax3.set_yticks([])
             self.ax3.set_yticklabels([])
             self.ax3.tick_params(left=False, right=False, labelleft=False, labelright=False)
@@ -1247,13 +1306,13 @@ class DeepfakeDetectionGUI:
             self.ax3.set_facecolor(self.colors['bg'])
             self.ax3.tick_params(colors=self.colors['text_dim'], labelsize=8)
 
-            # Add summary information below the chart
+            # Add VERY CLEAR summary showing this is ALL frames analyzed
             self.ax3.text(50, -0.5,
-                          f'Total Analyzed: {total_analyzed_frames:,} frames | Real: {real_count:,} | Fake: {fake_count:,}',
+                          f'📊 CUMULATIVE RESULTS - ALL {total_analyzed_frames:,} ANALYZED FRAMES | Real: {real_count:,} | Fake: {fake_count:,}',
                           ha='center', va='center', color=self.colors['text_dim'], fontsize=9, fontweight='bold')
 
-
-        self.ax3.set_title('Cumulative Analysis Results (All Predictions)', color=self.colors['text'],
+        # CRYSTAL CLEAR title showing this is ALL frames, not recent ones
+        self.ax3.set_title('📊 CUMULATIVE ANALYSIS - ALL FRAMES ANALYZED SO FAR', color=self.colors['text'],
                            fontsize=12, fontweight='bold', pad=15)
 
         plt.tight_layout(pad=1.5)
@@ -1262,8 +1321,102 @@ class DeepfakeDetectionGUI:
         # Update statistics
         self.update_statistics()
 
+    def find_fake_timestamps(self):
+        """Find specific timestamps where the model is most confident the video is fake"""
+        if not self.prediction_history:
+            print("DEBUG: No prediction history")
+            return []
+
+        predictions = list(self.prediction_history)
+        timestamps = list(self.frame_timestamps) if self.frame_timestamps else []
+        confidences = list(self.confidence_history)
+
+        print(f"DEBUG: Predictions: {len(predictions)}, Timestamps: {len(timestamps)}, Confidences: {len(confidences)}")
+
+        # FIXED: Create accurate timestamps based on actual video duration
+        if len(timestamps) == 0:
+            print("DEBUG: No timestamps found, creating accurate ones based on video properties")
+            # Calculate actual video duration in seconds
+            total_video_duration = self.total_video_frames / self.video_fps if self.video_fps > 0 else len(
+                predictions) * 0.5
+
+            for i in range(len(predictions)):
+                # Calculate proportional timestamp within actual video duration
+                timestamp = (i / len(predictions)) * total_video_duration
+                timestamps.append(timestamp)
+
+            print(f"DEBUG: Created {len(timestamps)} timestamps for {total_video_duration:.1f}s video")
+
+        # Only return timestamps if overall prediction is FAKE
+        fake_count = sum(1 for p in predictions if p < 0.5)
+        total_count = len(predictions)
+        overall_fake_percentage = (fake_count / total_count) * 100
+
+        print(
+            f"DEBUG: Total predictions: {total_count}, Fake count: {fake_count}, Fake %: {overall_fake_percentage:.1f}")
+
+        # MUCH MORE LENIENT: Show timestamps if >30% fake frames
+        if overall_fake_percentage <= 30:
+            print(f"DEBUG: Video not fake enough ({overall_fake_percentage:.1f}% fake), no timestamps")
+            return []
+
+        # VERY LENIENT CRITERIA - just find the most fake predictions
+        suspicious_moments = []
+
+        # Find bottom 25% of predictions (most fake)
+        sorted_predictions = sorted(enumerate(predictions), key=lambda x: x[1])
+        bottom_25_percent = sorted_predictions[:max(1, len(sorted_predictions) // 4)]
+
+        print(f"DEBUG: Looking at bottom 25% of predictions ({len(bottom_25_percent)} frames)")
+
+        for idx, pred in bottom_25_percent:
+            if idx < len(timestamps):
+                suspicious_moments.append({
+                    'timestamp': timestamps[idx],
+                    'prediction': pred,
+                    'confidence': confidences[idx] if idx < len(confidences) else 0.5,
+                    'certainty': (0.5 - pred) * 2
+                })
+
+        print(f"DEBUG: Found {len(suspicious_moments)} suspicious moments")
+
+        if len(suspicious_moments) == 0:
+            print("DEBUG: No suspicious moments found, returning empty")
+            return []
+
+        # Sort by how fake they are
+        suspicious_moments.sort(key=lambda x: x['prediction'])  # Most fake first (lowest values)
+
+        # Group nearby timestamps (within 5 seconds) to avoid spam
+        grouped_moments = []
+        for moment in suspicious_moments[:10]:
+            # Check if this timestamp is close to any existing one
+            is_close = False
+            for existing in grouped_moments:
+                if abs(moment['timestamp'] - existing['timestamp']) < 5.0:
+                    is_close = True
+                    break
+
+            if not is_close:
+                grouped_moments.append(moment)
+
+            # Max 5 timestamps
+            if len(grouped_moments) >= 5:
+                break
+
+        print(f"DEBUG: Final grouped moments: {len(grouped_moments)}")
+        for i, moment in enumerate(grouped_moments):
+            print(f"  {i + 1}. {self.format_timestamp(moment['timestamp'])}: pred={moment['prediction']:.3f}")
+
+        return grouped_moments
+
+    def format_timestamp(self, seconds):
+        """Format seconds to MM:SS format"""
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes:02d}:{secs:02d}"
+
     def update_statistics(self):
-        """Update statistics display with enhanced formatting based on total video frames"""
         if not self.prediction_history:
             return
 
@@ -1291,34 +1444,55 @@ class DeepfakeDetectionGUI:
             recent_trend = np.mean(predictions[-10:]) - np.mean(predictions[-20:-10]) if len(predictions) >= 20 else 0
             trend_text = "📈 Trending REAL" if recent_trend > 0.1 else "📉 Trending FAKE" if recent_trend < -0.1 else "➡️ Stable"
         else:
-            trend_text = "➡️ Analyzing..."
+            trend_text = "🔄 Analyzing..."
 
-        stats_text = f"""
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                        ANALYSIS SUMMARY                      ║
-    ╠══════════════════════════════════════════════════════════════╣
-    ║ TOTAL VIDEO ANALYSIS                                         ║
-    ║ Total Frames:          {self.total_video_frames:>6}                             ║
-    ║ Real Frames:           {total_real_frames:>6} ({real_percentage:>5.1f}%)                ║
-    ║ Fake Frames:           {total_fake_frames:>6} ({fake_percentage:>5.1f}%)                ║
-    ║                                                              ║
-    ║ SAMPLE ANALYSIS                                              ║
-    ║ Frames Analyzed:       {len(predictions):>6}                             ║
-    ║ Analysis Coverage:     {(len(predictions) / self.total_video_frames) * 100:>5.1f}%                          ║
-    ║                                                              ║
-    ║ CONFIDENCE METRICS                                           ║
-    ║ Average Confidence:    {avg_confidence * 100:>5.1f}%                          ║
-    ║ Peak Confidence:       {max_confidence * 100:>5.1f}%                          ║
-    ║ Lowest Confidence:     {min_confidence * 100:>5.1f}%                          ║
-    ║                                                              ║
-    ║ CURRENT STATUS                                               ║
-    ║ Trend:                 {trend_text:<20}                    ║
-    ║ Latest Prediction:     {'REAL' if predictions[-1] > 0.5 else 'FAKE':<6} ({confidences[-1] * 100:>5.1f}%)              ║
-    ╚══════════════════════════════════════════════════════════════╝
-        """
+        # Find suspicious timestamps (only if video is determined fake)
+        suspicious_moments = self.find_fake_timestamps()
+
+        stats_text = f"""╔══════════════════════════════════════════════════════════════╗
+║                   MULTI-HEAD ANALYSIS                        ║
+╠══════════════════════════════════════════════════════════════╣
+║ TOTAL VIDEO ANALYSIS (Multi-Head LSTM)                      ║
+║ Total Frames:          {self.total_video_frames:>6}                             ║
+║ Real Frames:           {total_real_frames:>6} ({real_percentage:>5.1f}%)                ║
+║ Fake Frames:           {total_fake_frames:>6} ({fake_percentage:>5.1f}%)                ║
+║                                                              ║
+║ SAMPLE ANALYSIS                                              ║
+║ Frames Analyzed:       {len(predictions):>6}                             ║
+║ Analysis Coverage:     {(len(predictions) / self.total_video_frames) * 100:>5.1f}%                          ║
+║                                                              ║
+║ CONFIDENCE METRICS                                           ║
+║ Average Confidence:    {avg_confidence * 100:>5.1f}%                          ║
+║ Peak Confidence:       {max_confidence * 100:>5.1f}%                          ║
+║ Lowest Confidence:     {min_confidence * 100:>5.1f}%                          ║
+║                                                              ║
+║ CURRENT STATUS                                               ║
+║ Head Status:           9 Heads Active                       ║
+║ Trend:                 {trend_text:<20}                    ║
+║ Latest Prediction:     {'REAL' if predictions[-1] > 0.5 else 'FAKE':<6} ({confidences[-1] * 100:>5.1f}%)              ║"""
+
+        # Add suspicious timestamps as SEPARATE LINES for better visibility
+        if suspicious_moments:
+            stats_text += f"""
+║                                                              ║
+║ 🚨 SUSPICIOUS TIMESTAMPS DETECTED:                          ║"""
+
+            # Add each timestamp on its own line for maximum visibility
+            for i, moment in enumerate(suspicious_moments[:5]):
+                timestamp_str = self.format_timestamp(moment['timestamp'])
+                confidence_str = f"{moment['certainty'] * 100:.0f}%"
+                stats_text += f"""
+║ • {timestamp_str} - Fake Confidence: {confidence_str:<20}              ║"""
+
+        stats_text += """
+╚══════════════════════════════════════════════════════════════╝"""
 
         self.stats_text.delete(1.0, tk.END)
         self.stats_text.insert(tk.END, stats_text)
+
+        # IMPORTANT: Auto-scroll to show suspicious timestamps at the bottom
+        if suspicious_moments:
+            self.stats_text.see(tk.END)  # Scroll to bottom to show timestamps
 
     def update_progress(self, progress, current_frame, total_frames):
         """Update progress bar and frame counter"""
@@ -1329,18 +1503,18 @@ class DeepfakeDetectionGUI:
         """Handle analysis completion with enhanced results"""
         self.is_analyzing = False
         self.analyze_btn.config(text="🔍 START ANALYSIS", bg=self.colors['real'])
-        self.update_status("✅ Analysis completed successfully")
+        self.update_status("✅ Multi-Head analysis completed successfully")
 
         # Clean up resources
         gc.collect()
 
         # Show enhanced final results with custom dialog
         if self.prediction_history:
-            self.show_beautiful_results_dialog()
+            self.show_multi_head_results_dialog()
 
-    def export_simple_report(self, real_percentage, fake_percentage, total_real_frames, total_fake_frames,
-                             avg_confidence):
-        """Export simple analysis report"""
+    def export_multi_head_report(self, real_percentage, fake_percentage, total_real_frames, total_fake_frames,
+                                 avg_confidence):
+        """Export Multi-Head analysis report"""
         try:
             from datetime import datetime
 
@@ -1353,38 +1527,50 @@ class DeepfakeDetectionGUI:
                 verdict = "UNCERTAIN"
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_filename = f"deepfake_analysis_{timestamp}.txt"
+            report_filename = f"multi_head_deepfake_analysis_{timestamp}.txt"
             video_name = os.path.basename(self.current_video) if self.current_video else "Unknown"
 
-            report_content = f"""DEEPFAKE ANALYSIS REPORT
-    Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-    {'=' * 40}
+            report_content = f"""MULTI-HEAD DEEPFAKE ANALYSIS REPORT
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+{'=' * 60}
 
-    FILE: {video_name}
-    VERDICT: {verdict}
+FILE: {video_name}
+VERDICT: {verdict}
+MODEL: Multi-Head LSTM Architecture
 
-    RESULTS:
-    Total Frames: {self.total_video_frames:,}
-    Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
-    Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
-    Average Confidence: {avg_confidence:.1f}%
+MULTI-HEAD ANALYSIS RESULTS:
+Total Frames: {self.total_video_frames:,}
+Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
+Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
+Average Multi-Head Confidence: {avg_confidence:.1f}%
 
-    ANALYSIS DETAILS:
-    Frames Analyzed: {len(self.prediction_history):,}
-    Coverage: {(len(self.prediction_history) / self.total_video_frames) * 100:.1f}%
-    Model: Enhanced LSTM Deepfake Detector
-    """
+MULTI-HEAD ANALYSIS DETAILS:
+Frames Analyzed: {len(self.prediction_history):,}
+Coverage: {(len(self.prediction_history) / self.total_video_frames) * 100:.1f}%
+Architecture: Multi-Head Multi-Input LSTM
+Heads: 4 Facial Regions + 3 Temporal + Motion + Overall
+Model: Multi-Head Deepfake Detector v3.0
+
+TECHNICAL SPECIFICATIONS:
+- Parallel Processing Heads: 9
+- Feature Engineering: Multi-Head Multi-Perspective
+- Temporal Analysis: Early/Middle/Late Frame Chunks
+- Motion Detection: Frame Difference Analysis
+- Facial Region Analysis: 4 Specialized Regions
+- Confidence Calculation: Multi-Head Ensemble
+"""
 
             with open(report_filename, 'w') as f:
                 f.write(report_content)
 
-            messagebox.showinfo("Export Complete", f"Report saved: {report_filename}")
+            messagebox.showinfo("Multi-Head Report Exported",
+                                f"Multi-Head report saved: {report_filename}")
 
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
+            messagebox.showerror("Export Error", f"Failed to export Multi-Head report: {str(e)}")
 
-    def show_beautiful_results_dialog(self):
-        """Show a short, direct results dialog with clear, visible buttons"""
+    def show_multi_head_results_dialog(self):
+        """Show Multi-Head results dialog"""
         predictions = list(self.prediction_history)
         confidences = list(self.confidence_history)
 
@@ -1400,7 +1586,7 @@ class DeepfakeDetectionGUI:
         total_real_frames = int((real_percentage / 100) * self.total_video_frames)
         total_fake_frames = self.total_video_frames - total_real_frames
 
-        # Determine verdict based on your criteria
+        # Determine verdict based on Multi-Head criteria
         if real_percentage > 80:
             verdict = "REAL"
             verdict_icon = "✅"
@@ -1417,10 +1603,10 @@ class DeepfakeDetectionGUI:
         # Calculate average confidence
         avg_confidence = np.mean(confidences) * 100 if confidences else 0
 
-        # Create simple dialog
+        # Create Multi-Head results dialog
         result_dialog = tk.Toplevel(self.root)
-        result_dialog.title("🔍 Analysis Results")
-        result_dialog.geometry("600x450")  # Made slightly larger
+        result_dialog.title("🚀 Multi-Head Analysis Results")
+        result_dialog.geometry("650x500")
         result_dialog.configure(bg=self.colors['bg'])
         result_dialog.resizable(False, False)
 
@@ -1442,12 +1628,21 @@ class DeepfakeDetectionGUI:
         # Title
         title_label = tk.Label(
             header_inner,
+            text=f"🚀 MULTI-HEAD ANALYSIS",
+            font=('Segoe UI', 24, 'bold'),
+            fg=self.colors['accent'],
+            bg=self.colors['card']
+        )
+        title_label.pack()
+
+        verdict_label = tk.Label(
+            header_inner,
             text=f"{verdict_icon} {verdict}",
             font=('Segoe UI', 28, 'bold'),
             fg=verdict_color,
             bg=self.colors['card']
         )
-        title_label.pack()
+        verdict_label.pack(pady=(10, 0))
 
         # Results section
         results_frame = tk.Frame(main_frame, bg=self.colors['card_light'], relief=tk.FLAT, bd=0)
@@ -1456,10 +1651,10 @@ class DeepfakeDetectionGUI:
         results_inner = tk.Frame(results_frame, bg=self.colors['card_light'])
         results_inner.pack(pady=20)
 
-        # Simple results
+        # Multi-Head results
         tk.Label(
             results_inner,
-            text="ANALYSIS RESULTS",
+            text="MULTI-HEAD ANALYSIS RESULTS",
             font=('Segoe UI', 16, 'bold'),
             fg=self.colors['text'],
             bg=self.colors['card_light']
@@ -1467,13 +1662,24 @@ class DeepfakeDetectionGUI:
 
         # Results text
         results_text = f"""
-    Total Frames: {self.total_video_frames:,}
-    Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
-    Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
+Multi-Head Architecture Analysis:
 
-    Average Confidence: {avg_confidence:.1f}%
-    Frames Analyzed: {analyzed_frames:,}
+Total Frames: {self.total_video_frames:,}
+Real: {total_real_frames:,} frames ({real_percentage:.1f}%)
+Fake: {total_fake_frames:,} frames ({fake_percentage:.1f}%)
+
+Multi-Head Confidence: {avg_confidence:.1f}%
+Frames Analyzed: {analyzed_frames:,}
         """
+
+        # Add suspicious timestamps to results dialog if video is fake
+        suspicious_moments = self.find_fake_timestamps()
+        if suspicious_moments:
+            results_text += f"\n\n🚨 SUSPICIOUS TIMESTAMPS DETECTED:\n"
+            for i, moment in enumerate(suspicious_moments[:5]):
+                timestamp_str = self.format_timestamp(moment['timestamp'])
+                confidence_str = f"{moment['certainty'] * 100:.0f}%"
+                results_text += f"• {timestamp_str} - Fake Confidence: {confidence_str}\n"
 
         results_label = tk.Label(
             results_inner,
@@ -1485,20 +1691,24 @@ class DeepfakeDetectionGUI:
         )
         results_label.pack(pady=10)
 
-        # FIXED: Enhanced buttons section with better styling and spacing
+        # Enhanced buttons section with Multi-Head styling
         button_frame = tk.Frame(main_frame, bg=self.colors['bg'])
         button_frame.pack(fill=tk.X, pady=(25, 0))
+
+        # Separator line above buttons
+        separator = tk.Frame(button_frame, bg=self.colors['border'], height=1)
+        separator.pack(fill=tk.X, pady=(0, 20))
 
         # Create a sub-frame for button alignment
         button_container = tk.Frame(button_frame, bg=self.colors['bg'])
         button_container.pack(fill=tk.X)
 
-        # Export/Save button - LEFT side with enhanced styling
+        # Export/Save button - LEFT side with Multi-Head styling
         export_btn = tk.Button(
             button_container,
-            text="💾 SAVE REPORT",
-            command=lambda: self.export_simple_report(real_percentage, fake_percentage, total_real_frames,
-                                                      total_fake_frames, avg_confidence),
+            text="💾 SAVE MULTI-HEAD REPORT",
+            command=lambda: self.export_multi_head_report(real_percentage, fake_percentage, total_real_frames,
+                                                          total_fake_frames, avg_confidence),
             bg=self.colors['accent'],
             fg='white',
             font=('Segoe UI', 14, 'bold'),
@@ -1509,7 +1719,7 @@ class DeepfakeDetectionGUI:
             activebackground=self.lighten_color(self.colors['accent']),
             activeforeground='white',
             bd=0,
-            width=15
+            width=20
         )
         export_btn.pack(side=tk.LEFT, padx=(0, 15))
 
@@ -1517,7 +1727,7 @@ class DeepfakeDetectionGUI:
         export_btn.bind("<Enter>", lambda e: export_btn.config(bg=self.lighten_color(self.colors['accent'])))
         export_btn.bind("<Leave>", lambda e: export_btn.config(bg=self.colors['accent']))
 
-        # Close button - RIGHT side with enhanced styling
+        # Close button - RIGHT side with Multi-Head styling
         close_btn = tk.Button(
             button_container,
             text="✖️ CLOSE",
@@ -1544,8 +1754,10 @@ class DeepfakeDetectionGUI:
         result_dialog.bind('<Return>', lambda e: result_dialog.destroy())  # Enter to close
         result_dialog.bind('<Escape>', lambda e: result_dialog.destroy())  # Escape to close
         result_dialog.bind('<Control-s>',
-                           lambda e: self.export_simple_report(real_percentage, fake_percentage, total_real_frames,
-                                                               total_fake_frames, avg_confidence))  # Ctrl+S to save
+                           lambda e: self.export_multi_head_report(real_percentage, fake_percentage,
+                                                                   total_real_frames,
+                                                                   total_fake_frames,
+                                                                   avg_confidence))  # Ctrl+S to save
 
         # Center the dialog on screen
         result_dialog.update_idletasks()
@@ -1555,75 +1767,6 @@ class DeepfakeDetectionGUI:
 
         # Focus on the dialog
         result_dialog.focus_set()
-
-        # Add a subtle separator line above buttons for better visual separation
-        separator = tk.Frame(button_frame, bg=self.colors['border'], height=1)
-        separator.pack(fill=tk.X, pady=(0, 20))
-
-    def export_analysis_report(self, predictions, confidences, video_name, video_duration):
-        """Export detailed analysis report to text file"""
-        try:
-            from datetime import datetime
-
-            # Generate report filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_filename = f"deepfake_analysis_{timestamp}.txt"
-
-            # Calculate all statistics
-            total_frames = len(predictions)
-            real_frames = sum(1 for p in predictions if p > 0.5)
-            fake_frames = total_frames - real_frames
-            real_pct = (real_frames / total_frames) * 100
-            fake_pct = (fake_frames / total_frames) * 100
-            avg_confidence = np.mean(confidences) * 100 if confidences else 0
-
-            verdict = "AUTHENTIC" if real_pct > fake_pct else "DEEPFAKE DETECTED"
-
-            # Create detailed report
-            report_content = f"""
-DEEPFAKE DETECTION ANALYSIS REPORT
-Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-{'=' * 60}
-
-VIDEO INFORMATION:
-- File: {video_name}
-- Duration: {video_duration:.2f} seconds
-- Total Frames: {self.total_video_frames:,}
-- Frames Analyzed: {total_frames:,}
-- Frame Rate: {self.video_fps:.1f} fps
-
-ANALYSIS RESULTS:
-- Final Verdict: {verdict}
-- Confidence: {max(real_pct, fake_pct):.1f}%
-- Authentic Frames: {real_frames:,} ({real_pct:.2f}%)
-- Manipulated Frames: {fake_frames:,} ({fake_pct:.2f}%)
-- Average Confidence: {avg_confidence:.2f}%
-
-TECHNICAL DETAILS:
-- Model: Enhanced LSTM Deepfake Detector
-- Analysis Method: Facial Landmark + Color Features
-- Chunk Size: {self.chunk_size} frames
-- Feature Dimensions: {self.feature_dim}
-- Processing Quality: High
-
-FRAME-BY-FRAME PREDICTIONS:
-{chr(10).join([f"Frame {i + 1}: {'REAL' if p > 0.5 else 'FAKE'} (Confidence: {abs(p - 0.5) * 200:.1f}%)" for i, p in enumerate(predictions[:50])])}
-{'...(showing first 50 frames)' if len(predictions) > 50 else ''}
-
-END OF REPORT
-"""
-
-            # Save report
-            with open(report_filename, 'w') as f:
-                f.write(report_content)
-
-            messagebox.showinfo(
-                "Report Exported",
-                f"Analysis report saved successfully!\n\nFile: {report_filename}\n\nThe report contains detailed frame-by-frame analysis and can be used for forensic documentation."
-            )
-
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export report:\n{str(e)}")
 
     def update_status(self, message):
         """Update status bar with animation"""
@@ -1648,7 +1791,7 @@ END OF REPORT
 
 
 def main():
-    """Main function to run the enhanced GUI application"""
+    """Main function to run the Multi-Head GUI application"""
     root = tk.Tk()
 
     # Set application icon (if available)
@@ -1670,7 +1813,7 @@ def main():
     # Handle window closing
     def on_closing():
         if app.is_analyzing or app.is_loading_video:
-            if messagebox.askokcancel("Quit", "Operation in progress. Do you want to quit?"):
+            if messagebox.askokcancel("Quit", "Multi-Head analysis in progress. Do you want to quit?"):
                 app.is_analyzing = False
                 app.is_loading_video = False
                 root.quit()
